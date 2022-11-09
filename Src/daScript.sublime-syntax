@@ -5,7 +5,6 @@ file_extensions: [das]
 scope: source.dascript
 
 # https://dascript.org/doc/reference/language/lexical_structure.html
-# TODO: Function calls with named arguments.
 # TODO: Type constructors.
 # TODO: Arguments in block and lambda definitions.
 # TODO: Apply correct scope to anonymous function's `=>`.
@@ -188,7 +187,7 @@ contexts:
   -parens:
   - match: \(
     scope: punctuation.section.group.begin.dascript
-    push: parens-contents
+    push: [parens-contents, parens-contents-start]
 
   -brackets:
   - match: \[
@@ -218,6 +217,52 @@ contexts:
   - meta_scope: meta.block.dascript
   - match: \}
     scope: punctuation.section.block.end.dascript
+    pop: true
+  - include: main
+
+  #
+  # Function calls with named arguments.
+  #
+  parens-contents-start:
+  - match: \[
+    scope: punctuation.section.brackets.begin.dascript
+    set: [brackets-contents, named-arguments-start]
+  - include: -pop-on-non-whitespace-multiline
+
+  named-arguments-start:
+  - include: -pop-on-unexpected
+  - match: ({{identifier}})[ \t]*(?:({{equal}})|(<-)|(:=))
+    captures:
+      1: variable.parameter.dascript
+      2: keyword.operator.assignment.dascript
+      3: keyword.operator.assignment.move.dascript
+      4: keyword.operator.assignment.clone.dascript
+    set: named-arguments
+  - match: '{{identifier}}'
+    scope: variable.other.dascript
+    set:
+    - match: '{{equal}}'
+      scope: keyword.operator.assignment.dascript
+      set: named-arguments
+    - match: <-
+      scope: keyword.operator.assignment.move.dascript
+      set: named-arguments
+    - match: :=
+      scope: keyword.operator.assignment.clone.dascript
+      set: named-arguments
+    - include: -pop-on-non-whitespace-multiline
+  - include: -pop-on-non-whitespace-multiline
+
+  named-arguments:
+  - match: ','
+    scope: punctuation.separator.argument.dascript
+    push:
+    - include: -pop-on-unexpected
+    - match: '{{identifier}}'
+      scope: variable.parameter.dascript
+      pop: true
+    - include: -pop-on-non-whitespace-multiline
+  - match: (?=\])
     pop: true
   - include: main
 
