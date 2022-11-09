@@ -399,10 +399,10 @@ contexts:
   # we assume it is an all-caps constant.
   - match: (?:_[0-9_`]*)?[A-Z][0-9_`]*[A-Z][A-Z0-9_`]*{{b}}
     scope: variable.other.constant.dascript
-  # Enum member access.
+  # Enum member access. We only consider capitalized enum names to reduce false positives.
   - match: |-
       (?x)
-      ({{identifier}})
+      ((?: _ [0-9_`]*)? [A-Z] [{{identifier_char}}]*)
       [ \t]+
       (?! (?: [ai]s | in | {{critical_keyword}}) {{b}})
       ({{identifier}})
