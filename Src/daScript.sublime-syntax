@@ -426,6 +426,13 @@ contexts:
   - match: (?:abstract|override|private|public|sealed|shared){{b}}
     scope: storage.modifier.dascript
 
+  -lenient-declaration-modifiers:
+  - include: -declaration-modifiers
+  # Unrecognized modifiers.
+  - match: ({{identifier}})[ \t]+(?=[{{identifier_first_char}}])
+    captures:
+      1: variable.other.dascript
+
   -module-stmt:
   - match: module{{b}}
     scope: keyword.declaration.namespace.dascript
@@ -462,13 +469,14 @@ contexts:
     push: [callable-return-type, function-parameters, function-name]
 
   function-name:
-  - include: -declaration-modifiers
   - match: operator{{b}}
     set:
     - meta_scope: entity.name.function.dascript
-    - match: :=|(?:[ai]s|delete){{b}}
-      pop: true
-    - match: (?![-+*/%|^&~<>!=?.\[\] \t])
+    - match: |-
+        (?x)
+          :=
+        | (?: [ai]s | delete) {{b}}
+        | (?! [-+*/%|^&~<>!=?.\[\] \t])
       pop: true
   - match: \+\+|-- # Prefix increment or decrement.
     set:
@@ -476,6 +484,7 @@ contexts:
     - match: operator{{b}}
       pop: true
     - include: -pop-on-non-whitespace
+  - include: -lenient-declaration-modifiers
   - match: '{{identifier}}'
     scope: entity.name.function.dascript
     pop: true
@@ -490,13 +499,19 @@ contexts:
       - meta_scope: meta.function.parameters.dascript
       - include: callable-parameters
     - callable-parameter-name
+  - include: -unrecognized-identifiers
   - include: -pop-on-non-whitespace
+
+  -unrecognized-identifiers:
+  - include: -pop-on-unexpected
+  - match: '{{identifier}}'
+    scope: variable.other.dascript
 
   -struct-stmt:
   - match: struct{{b}}
     scope: storage.type.struct.dascript keyword.declaration.struct.dascript
     push:
-    - include: -declaration-modifiers
+    - include: -lenient-declaration-modifiers
     - match: '{{identifier}}'
       scope: entity.name.struct.dascript
       set: class-inheritance
@@ -506,7 +521,7 @@ contexts:
   - match: class{{b}}
     scope: storage.type.class.dascript keyword.declaration.class.dascript
     push:
-    - include: -declaration-modifiers
+    - include: -lenient-declaration-modifiers
     - match: '{{identifier}}'
       scope: entity.name.class.dascript
       set: class-inheritance
@@ -523,6 +538,7 @@ contexts:
       scope: punctuation.accessor.double-colon.dascript
       set: base-class-qualified-name
     - include: -pop-on-non-whitespace
+  - include: -unrecognized-identifiers
   - include: -pop-on-non-whitespace
 
   # In daScript, namespaces are flat, but we support arbitrarily long chains just in case.
@@ -543,7 +559,7 @@ contexts:
   - match: enum{{b}}
     scope: storage.type.enum.dascript keyword.declaration.enum.dascript
     push:
-    - include: -declaration-modifiers
+    - include: -lenient-declaration-modifiers
     - match: '{{identifier}}'
       scope: entity.name.enum.dascript
       set:
@@ -557,6 +573,8 @@ contexts:
           scope: variable.other.dascript
           pop: true
         - include: -pop-on-non-whitespace
+      # Enum's base type will get `storage.type` scope regardless of whether we accept unrecognized
+      # identifiers here or not. So why do extra work?
       - include: -pop-on-non-whitespace
     - include: -pop-on-non-whitespace
 
@@ -667,7 +685,7 @@ contexts:
     push:
     - match: |-
         (?x)
-        [0-9] [0-9_]*
+          [0-9] [0-9_]*
         | ' (?: \\ {{char_escape}} | .??) '
       scope: entity.name.label.dascript
       set:
