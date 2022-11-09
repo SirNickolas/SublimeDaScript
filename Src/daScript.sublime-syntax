@@ -820,7 +820,10 @@ contexts:
       scope: constant.other.variant.dascript
       pop: true
     - include: -pop-on-non-whitespace
-  - match: (?:addr|deref|new){{b}}
+  - match: new{{b}}
+    scope: keyword.operator.word.dascript
+    push: [type-postfix, type, namespace-reference]
+  - match: (?:addr|deref){{b}}
     scope: keyword.operator.word.dascript
   - match: '{{language_constant}}'
     scope: constant.language.dascript
