@@ -1,0 +1,905 @@
+%YAML 1.2
+---
+name: daScript
+file_extensions: [das]
+scope: source.dascript
+
+# https://dascript.org/doc/reference/language/lexical_structure.html
+# TODO: Function calls with named arguments.
+# TODO: Type constructors.
+# TODO: Arguments in block and lambda definitions.
+# TODO: Apply correct scope to anonymous function's `=>`.
+# TODO: Use `meta.*` for everything.
+# TODO: Annotations.
+
+variables:
+  identifier_first_char: A-Za-z_
+  identifier_char: A-Za-z0-9_`
+  identifier: '[{{identifier_first_char}}][{{identifier_char}}]*'
+  b: (?![{{identifier_char}}])
+  char_escape: '[bfnrt\\]'
+  string_escape: '[bfnrtv"/{}\\]'
+  # If we process something from this list incorrectly, chances are good that we will mess up
+  # a large part of the file.
+  # More complete list (as an optimization, not checked):
+  # (?x:
+  #   break | class | continue | def | delete | else | enum | finally | for | goto | include
+  # | label | let | module | options | recover | require | return | (?:static_)?(?:el)?if
+  # | struct | try | typedef | var | while | yield
+  # )
+  critical_keyword: class|def|enum|goto|include|label|module|options|require|struct|typedef
+  language_constant: (?:true|false|null){{b}}
+  basic_type: bool|double|float[234]?|string|u?int(?:[2348]|16|64)?|u?range|void
+  generic_type: array|block|function|iterator|lambda|smart_ptr|table|tuple
+  colon: :(?![:=])
+  equal: =(?![=>])
+  minus: -(?![-=>])
+  left_angle_bracket: <(?![-<=|])
+
+contexts:
+  prototype:
+  - match: (?m)(//!).*
+    scope: comment.line.documentation.dascript
+    captures:
+      1: punctuation.definition.comment.dascript
+  - match: (?m)(//).*
+    scope: comment.line.double-slash.dascript
+    captures:
+      1: punctuation.definition.comment.dascript
+  - include: -block-comments
+
+  -block-comments:
+  - match: /\*\*(?!/)
+    scope: punctuation.definition.comment.begin.dascript
+    push:
+    - meta_scope: comment.block.documentation.dascript
+    - meta_include_prototype: false
+    - include: -block-comments
+    - include: -block-comment-end
+  - match: /\*
+    scope: punctuation.definition.comment.begin.dascript
+    push:
+    - meta_scope: comment.block.dascript
+    - meta_include_prototype: false
+    - include: -block-comments
+    - include: -block-comment-end
+
+  -block-comment-end:
+  - match: \*/
+    scope: punctuation.definition.comment.end.dascript
+    pop: true
+
+  #
+  # Entry point.
+  #
+  main:
+  - include: -number-literals
+  - include: -character-literals
+  - include: -string-literals
+  - include: -any-brackets
+  - include: -words
+  - include: -punctuation
+
+  #
+  # Helpers.
+  #
+  -pop-on-non-whitespace:
+  - match: (?![ \t])
+    pop: true
+
+  -pop-on-non-whitespace-multiline:
+  - match: (?=[^ \t\n])
+    pop: true
+
+  -pop-on-unexpected:
+  - match: (?=(?:{{critical_keyword}}){{b}})
+    pop: true
+
+  -pop-on-unpaired-or-unexpected:
+  - match: (?=[\)\]\}]|(?:{{critical_keyword}}){{b}})
+    pop: true
+
+  #
+  # Literals.
+  #
+  -number-literals:
+  - match: |-
+      (?x)
+      (
+        (?:
+          [0-9]+ (?:
+            (\.) (?! \.) [0-9]*
+          | (?= [EFef] | [Ll][Ff])
+          )
+        | (\.) [0-9]+
+        )
+        (?: [Ee] [+-]? [0-9]+)?
+        ([Ll]? [Ff]?)
+      ) [{{identifier_char}}]*
+    captures:
+      1: constant.numeric.float.decimal.dascript
+      2: punctuation.separator.decimal.dascript
+      3: punctuation.separator.decimal.dascript
+      4: storage.type.numeric.dascript
+  - match: |-
+      (?x)
+      (
+        (0[Xx])
+        (?: \h [\h_]* ([LUlu]*))?
+      ) [{{identifier_char}}]*
+    captures:
+      1: constant.numeric.integer.hexadecimal.dascript
+      2: punctuation.definition.numeric.base.dascript
+      3: storage.type.numeric.dascript
+  - match: ([0-9][0-9_]*([LUlu]*))[{{identifier_char}}]*
+    captures:
+      1: constant.numeric.integer.decimal.dascript
+      2: storage.type.numeric.dascript
+
+  -character-literals:
+  - match: "'"
+    scope: punctuation.definition.string.begin.dascript
+    push:
+    - meta_scope: string.quoted.single.dascript
+    - meta_include_prototype: false
+    - match: \\{{char_escape}}
+      scope: constant.character.escape.dascript
+    - match: \\?(')
+      captures:
+        1: punctuation.definition.string.end.dascript
+      pop: true
+    - match: \\.?
+      scope: comment.block.dascript
+
+  -string-literals:
+  - match: '"'
+    scope: punctuation.definition.string.begin.dascript
+    push:
+    - meta_scope: meta.string.dascript string.quoted.double.dascript
+    - meta_include_prototype: false
+    - match: \\(?:{{string_escape}}|x\h\h|u\h\h\h\h)
+      scope: constant.character.escape.dascript
+    - match: \\.?
+      scope: comment.block.dascript
+    - match: \{
+      scope: punctuation.section.interpolation.begin.dascript
+      push:
+      - clear_scopes: 1
+      - meta_scope: meta.interpolation.dascript
+      - meta_content_scope: source.dascript.embedded
+      - match: \}
+        scope: punctuation.section.interpolation.end.dascript
+        pop: true
+      - include: main
+    - match: '"'
+      scope: punctuation.definition.string.end.dascript
+      pop: true
+
+  #
+  # Bracket balancing.
+  #
+  -any-brackets:
+  - include: -parens
+  - include: -brackets
+  - include: -braces
+  - match: '[\)\]\}]'
+    scope: invalid.illegal.unpaired.dascript
+
+  -parens:
+  - match: \(
+    scope: punctuation.section.group.begin.dascript
+    push: parens-contents
+
+  -brackets:
+  - match: \[
+    scope: punctuation.section.brackets.begin.dascript
+    push: brackets-contents
+
+  -braces:
+  - match: \{
+    scope: punctuation.section.block.begin.dascript
+    push: braces-contents
+
+  parens-contents:
+  - meta_scope: meta.group.dascript
+  - match: \)
+    scope: punctuation.section.group.end.dascript
+    pop: true
+  - include: main
+
+  brackets-contents:
+  - meta_scope: meta.brackets.dascript
+  - match: \]
+    scope: punctuation.section.brackets.end.dascript
+    pop: true
+  - include: main
+
+  braces-contents:
+  - meta_scope: meta.block.dascript
+  - match: \}
+    scope: punctuation.section.block.end.dascript
+    pop: true
+  - include: main
+
+  #
+  # Types.
+  #
+  namespace-reference:
+  - include: -pop-on-unexpected
+  - match: (?:({{identifier}})[ \t]*)?(::)
+    captures:
+      1: variable.other.dascript
+      2: punctuation.accessor.double-colon.dascript
+    set:
+    - include: -pop-on-unexpected
+    # In daScript, namespaces are flat, but we support arbitrarily long chains just in case.
+    - match: ({{identifier}})[ \t]*(::)
+      captures:
+        1: variable.other.dascript
+        2: punctuation.accessor.double-colon.dascript
+    - include: -pop-on-non-whitespace
+  - include: -pop-on-non-whitespace
+
+  type:
+  - match: (?:{{basic_type}}|{{generic_type}}){{b}}
+    scope: storage.type.dascript
+    pop: true
+  - match: auto{{b}}
+    scope: storage.type.dascript
+    set:
+    - match: \(
+      scope: punctuation.section.group.begin.dascript
+      set: [parens-contents, auto-contents]
+    - include: -pop-on-non-whitespace
+  - match: (?:variant|bitfield){{b}}
+    scope: storage.type.dascript
+    set: angle-brackets-with-names
+  # `true/false/null` in type position - we won't see it in valid daScript, but this allows for
+  # better integration with custom syntaxes (e.g., JSON).
+  - match: '{{language_constant}}'
+    scope: constant.language.dascript
+    pop: true
+  - include: -pop-on-unexpected
+  - match: '{{identifier}}'
+    scope: support.type.dascript
+    pop: true
+  - include: -pop-on-non-whitespace
+
+  auto-contents:
+  - match: '{{identifier}}'
+    scope: entity.name.type.inferred.dascript
+    pop: true
+  - include: -pop-on-non-whitespace-multiline
+
+  type-postfix:
+  - match: (?:(=)[ \t]*)?(const|(?:ex|im)plicit){{b}}
+    captures:
+      1: storage.modifier.dascript
+      2: storage.modifier.dascript
+  - match: '[&?#]+|{{minus}}'
+    scope: storage.modifier.dascript
+  - match: '{{left_angle_bracket}}'
+    scope: punctuation.definition.generic.begin.dascript
+    push: [generic-arguments, type-postfix, type, namespace-reference]
+  - include: -brackets # Arrays.
+  - include: -pop-on-non-whitespace
+
+  angle-brackets-with-names:
+  - match: '{{left_angle_bracket}}'
+    scope: punctuation.definition.generic.begin.dascript
+    set: generic-named-arguments
+  - include: -pop-on-non-whitespace
+
+  -generic-arguments-common:
+  - match: '>'
+    scope: punctuation.definition.generic.end.dascript
+    pop: true
+  # Prototypes of callables can only be written inside generics.
+  - match: \(
+    scope: punctuation.section.group.begin.dascript
+    push: [callable-return-type, callable-parameters, callable-parameter-name]
+  # Silently pop in case we entered the generic by mistake.
+  - include: -pop-on-unpaired-or-unexpected
+
+  # E.g., `table<string; int>` or `block<(x: int): bool>`.
+  generic-arguments:
+  - include: -generic-arguments-common
+  - match: (?:({{identifier}})[ \t]*)?(:)
+    # Turned out there actually were names.
+    captures:
+      1: variable.other.dascript
+      2: punctuation.separator.type.dascript
+    set: [generic-named-arguments, type-postfix, type, namespace-reference]
+  - match: (?=[{{identifier_first_char}}])
+    push: [type-postfix, type, namespace-reference]
+  - match: ;
+    scope: punctuation.separator.sequence.dascript
+  - include: main
+
+  # E.g., `variant<i: int; s: string>`.
+  generic-named-arguments:
+  - include: -generic-arguments-common
+  - include: -colon-and-type
+  - match: ;
+    scope: punctuation.separator.mapping.dascript
+  - include: main
+
+  -colon-and-type:
+  - match: '{{colon}}'
+    scope: punctuation.separator.type.dascript
+    push: [type-postfix, type, namespace-reference]
+
+  callable-parameter-name:
+  - match: var{{b}}
+    scope: storage.modifier.dascript
+  - include: -pop-on-unexpected
+  - match: '{{identifier}}'
+    scope: variable.parameter.dascript
+    pop: true
+  - include: -pop-on-non-whitespace-multiline
+
+  callable-parameters:
+  - meta_scope: meta.parameters.dascript
+  - match: \)
+    scope: punctuation.section.group.end.dascript
+    pop: true
+  - match: aka{{b}}
+    scope: storage.modifier.dascript
+    push:
+    - include: -pop-on-unexpected
+    - match: '{{identifier}}'
+      scope: variable.other.dascript
+      pop: true
+    - include: -pop-on-non-whitespace-multiline
+  - include: -colon-and-type
+  - match: '[,;]'
+    scope: punctuation.separator.argument.dascript
+    push: callable-parameter-name
+  - include: main
+
+  callable-return-type:
+  - match: '{{colon}}'
+    scope: punctuation.separator.type.dascript
+    set:
+    - - meta_scope: meta.function.return-type.dascript
+      - include: type-postfix
+    - type
+    - namespace-reference
+  - include: -pop-on-non-whitespace
+
+  #
+  # Statements and expressions.
+  #
+  -words:
+  - include: -options-stmt
+  - include: -module-stmt
+  - include: -require-stmts
+  - include: -def-stmt
+  - include: -struct-stmt
+  - include: -class-stmt
+  - include: -enum-stmt
+  - include: -typedef-stmt
+  - include: -variant-stmt
+  - include: -bitfield-stmt
+  - include: -conditional-stmts
+  - include: -loop-stmts
+  - include: -exception-stmts
+  - include: -label-stmts
+  - include: -generic-value-exprs
+  - include: -typeinfo-expr
+  - include: -misc-keywords
+  # Function calls.
+  - match: |-
+      (?x)
+      ({{identifier}}) [ \t]* ((?= \() | <\|)
+    captures:
+      1: variable.function.dascript
+      2: punctuation.separator.argument.dascript
+  # If an identifier does not contain lowercase letters and contains at least 2 uppercase ones,
+  # we assume it is an all-caps constant.
+  - match: (?:_[0-9_`]*)?[A-Z][0-9_`]*[A-Z][A-Z0-9_`]*{{b}}
+    scope: variable.other.constant.dascript
+  # Enum member access.
+  - match: |-
+      (?x)
+      ({{identifier}})
+      [ \t]+
+      (?! (?: [ai]s | in | {{critical_keyword}}) {{b}})
+      ({{identifier}})
+    captures:
+      1: support.type.dascript
+      2: variable.other.constant.enum.dascript
+  - match: '{{identifier}}'
+    scope: variable.other.dascript
+
+  -options-stmt:
+  - match: options{{b}}
+    scope: keyword.control.directive.dascript
+    push:
+    - match: '{{identifier}}'
+      scope: constant.other.directive.dascript
+      pop: true
+    - include: -pop-on-non-whitespace
+
+  -declaration-modifiers:
+  # We allow all of these for every construct that needs some. They are reserved keywords anyway.
+  - match: (?:abstract|override|private|public|sealed|shared){{b}}
+    scope: storage.modifier.dascript
+
+  -module-stmt:
+  - match: module{{b}}
+    scope: keyword.declaration.namespace.dascript
+    push:
+    - - meta_scope: meta.namespace.dascript
+      - include: -declaration-modifiers
+      - include: -pop-on-non-whitespace
+    - - match: '{{identifier}}'
+        scope: entity.name.namespace.dascript
+        pop: true
+      - include: -pop-on-non-whitespace
+
+  -require-stmts:
+  - match: (?:require|include){{b}}
+    scope: keyword.control.import.dascript
+    push:
+    - match: (?=[{{identifier_first_char}}/.])
+      set:
+      - meta_scope: meta.path.dascript
+      - meta_include_prototype: false
+      - match: '{{identifier}}'
+        scope: variable.other.dascript
+      - match: /(?![/*])
+        scope: punctuation.accessor.slash.dascript
+      - match: \.
+        scope: punctuation.accessor.dot.dascript
+      - match: ''
+        pop: true
+    - include: -pop-on-non-whitespace
+
+  -def-stmt:
+  - match: def{{b}}
+    scope: storage.type.function.dascript keyword.declaration.function.dascript
+    push: [callable-return-type, function-parameters, function-name]
+
+  function-name:
+  - include: -declaration-modifiers
+  - match: operator{{b}}
+    set:
+    - meta_scope: entity.name.function.dascript
+    - match: :=|(?:[ai]s|delete){{b}}
+      pop: true
+    - match: (?![-+*/%|^&~<>!=?.\[\] \t])
+      pop: true
+  - match: \+\+|-- # Prefix increment or decrement.
+    set:
+    - meta_scope: entity.name.function.dascript
+    - match: operator{{b}}
+      pop: true
+    - include: -pop-on-non-whitespace
+  - match: '{{identifier}}'
+    scope: entity.name.function.dascript
+    pop: true
+  - include: -pop-on-non-whitespace
+
+  function-parameters:
+  - meta_scope: meta.function.dascript
+  - match: \(
+    scope: punctuation.section.group.begin.dascript
+    push:
+    - - clear_scopes: 1
+      - meta_scope: meta.function.parameters.dascript
+      - include: callable-parameters
+    - callable-parameter-name
+  - include: -pop-on-non-whitespace
+
+  -struct-stmt:
+  - match: struct{{b}}
+    scope: storage.type.struct.dascript keyword.declaration.struct.dascript
+    push:
+    - include: -declaration-modifiers
+    - match: '{{identifier}}'
+      scope: entity.name.struct.dascript
+      set: class-inheritance
+    - include: -pop-on-non-whitespace
+
+  -class-stmt:
+  - match: class{{b}}
+    scope: storage.type.class.dascript keyword.declaration.class.dascript
+    push:
+    - include: -declaration-modifiers
+    - match: '{{identifier}}'
+      scope: entity.name.class.dascript
+      set: class-inheritance
+    - include: -pop-on-non-whitespace
+
+  class-inheritance:
+  - match: '{{colon}}'
+    scope: punctuation.separator.inheritance.dascript
+    set:
+    - match: '{{identifier}}'
+      scope: entity.other.inherited-class.dascript
+      set: base-class-qualified-postfix
+    - match: '::'
+      scope: punctuation.accessor.double-colon.dascript
+      set: base-class-qualified-name
+    - include: -pop-on-non-whitespace
+  - include: -pop-on-non-whitespace
+
+  # In daScript, namespaces are flat, but we support arbitrarily long chains just in case.
+  base-class-qualified-postfix:
+  - meta_content_scope: entity.other.inherited-class.dascript
+  - match: '::'
+    scope: punctuation.accessor.double-colon.dascript
+    set: base-class-qualified-name
+  - include: -pop-on-non-whitespace
+
+  base-class-qualified-name:
+  - meta_content_scope: entity.other.inherited-class.dascript
+  - match: '{{identifier}}'
+    set: base-class-qualified-postfix
+  - include: -pop-on-non-whitespace
+
+  -enum-stmt:
+  - match: enum{{b}}
+    scope: storage.type.enum.dascript keyword.declaration.enum.dascript
+    push:
+    - include: -declaration-modifiers
+    - match: '{{identifier}}'
+      scope: entity.name.enum.dascript
+      set:
+      - match: '{{colon}}'
+        scope: punctuation.separator.inheritance.dascript
+        set:
+        - match: u?int(?:8|16)?{{b}}
+          scope: storage.type.dascript
+          pop: true
+        - match: '{{identifier}}'
+          scope: variable.other.dascript
+          pop: true
+        - include: -pop-on-non-whitespace
+      - include: -pop-on-non-whitespace
+    - include: -pop-on-non-whitespace
+
+  -typedef-stmt:
+  - match: typedef{{b}}
+    scope: storage.type.type.dascript keyword.declaration.type.dascript
+    push:
+    - include: -pop-on-unexpected
+    # Single `typedef`.
+    - match: '{{identifier}}'
+      scope: entity.name.type.dascript
+      set: typedef-value
+    # Brace-delimited `typedef` block.
+    - match: \{
+      scope: punctuation.section.block.begin.dascript
+      set:
+      - - meta_scope: meta.block.dascript
+        - match: ;
+          scope: punctuation.terminator.dascript
+          push: typedef-entry
+        - include: braces-contents
+      - typedef-entry
+    # Indented `typedef` block.
+    - match: ^([ \t]+)(?=[{{identifier_first_char}}])
+      set:
+      - match: ^[ \t]*(?=[^ \t\n])(?<!\1)|(?=(?:{{critical_keyword}}){{b}})
+        pop: true
+      - match: '{{identifier}}'
+        scope: entity.name.type.dascript
+        push: typedef-value
+      - include: -pop-on-non-whitespace-multiline
+    - include: -pop-on-non-whitespace-multiline
+
+  typedef-entry:
+  - include: -pop-on-unexpected
+  - match: '{{identifier}}'
+    scope: entity.name.type.dascript
+    set: typedef-value
+  - include: -pop-on-non-whitespace-multiline
+
+  typedef-value:
+  - match: '{{equal}}'
+    scope: keyword.operator.assignment.dascript
+    set: [type-postfix, type, namespace-reference]
+  - include: -pop-on-non-whitespace
+
+  -variant-stmt:
+  - match: (variant)[ \t]+({{identifier}})
+    captures:
+      1: storage.type.union.dascript keyword.declaration.union.dascript
+      2: entity.name.union.dascript
+  - match: variant{{b}}
+    scope: storage.type.dascript
+    push:
+    - include: -pop-on-unexpected
+    - match: '{{identifier}}'
+      scope: entity.name.union.dascript
+      pop: true
+    - include: angle-brackets-with-names
+
+  -bitfield-stmt:
+  - match: (bitfield)[ \t]+({{identifier}})
+    captures:
+      1: storage.type.bitfield.dascript keyword.declaration.bitfield.dascript
+      2: entity.name.bitfield.dascript
+  - match: bitfield{{b}}
+    scope: storage.type.dascript
+    push:
+    - include: -pop-on-unexpected
+    - match: '{{identifier}}'
+      scope: entity.name.bitfield.dascript
+      pop: true
+    - include: angle-brackets-with-names
+
+  -conditional-stmts:
+  - match: (?:static_)?if{{b}}
+    scope: keyword.control.conditional.if.dascript
+  - match: (?:static_)?elif{{b}}
+    scope: keyword.control.conditional.elseif.dascript
+  - match: else{{b}}
+    scope: keyword.control.conditional.else.dascript
+  - match: where{{b}}
+    scope: keyword.control.conditional.where.dascript
+
+  -loop-stmts:
+  - match: for{{b}}
+    scope: keyword.control.loop.for.dascript
+  - match: in{{b}}
+    scope: keyword.control.loop.for.in.dascript
+  - match: while{{b}}
+    scope: keyword.control.loop.while.dascript
+  - match: break{{b}}
+    scope: keyword.control.flow.break.dascript
+  - match: continue{{b}}
+    scope: keyword.control.flow.continue.dascript
+
+  -exception-stmts:
+  - match: try{{b}}
+    scope: keyword.control.exception.try.dascript
+  - match: recover{{b}}
+    scope: keyword.control.exception.catch.dascript
+  - match: finally{{b}}
+    scope: keyword.control.exception.finally.dascript
+
+  -label-stmts:
+  - match: label{{b}}
+    scope: storage.type.label.dascript keyword.declaration.label.dascript
+    push:
+    - match: |-
+        (?x)
+        [0-9] [0-9_]*
+        | ' (?: \\ {{char_escape}} | .??) '
+      scope: entity.name.label.dascript
+      set:
+      - match: '{{colon}}'
+        scope: punctuation.separator.label.dascript
+        pop: true
+      - include: -pop-on-non-whitespace
+    - include: -pop-on-non-whitespace
+  - match: goto{{b}}
+    scope: keyword.control.flow.goto.dascript
+    push:
+    - match: label{{b}}
+      scope: storage.type.label.dascript
+      pop: true
+    - include: -pop-on-non-whitespace
+
+  -generic-value-exprs:
+  - match: type{{b}}
+    # Somewhat unintuitive, `type<T>` produces the default value of `T`.
+    scope: constant.language.dascript
+    push: angle-brackets
+  - match: generator{{b}}
+    scope: storage.type.iterator.dascript keyword.declaration.generator.dascript
+    push: angle-brackets
+  - match: (?:reinterpret|(?:up)?cast){{b}}
+    scope: keyword.operator.word.dascript
+    push: angle-brackets
+  # In valid daScript, types cannot appear in value position, but we check for them just in case
+  # so we are able to correctly highlight arguments to a generic.
+  - match: (?:{{generic_type}}){{b}}
+    scope: storage.type.dascript
+    push: angle-brackets
+
+  angle-brackets:
+  - match: '{{left_angle_bracket}}'
+    scope: punctuation.definition.generic.begin.dascript
+    set: [generic-arguments, type-postfix, type, namespace-reference]
+  - include: -pop-on-non-whitespace
+
+  -typeinfo-expr:
+  - match: typeinfo{{b}}
+    scope: keyword.operator.word.dascript
+    push:
+    - match: \(
+      scope: punctuation.section.group.begin.dascript
+      set:
+      - - meta_scope: meta.group.dascript
+        - match: \)
+          scope: punctuation.section.group.end.dascript
+          pop: true
+        - include: main
+      - - match: '{{identifier}}'
+          scope: constant.other.typeinfo.dascript
+          set: angle-brackets-with-names
+        - include: -pop-on-non-whitespace
+    - include: -pop-on-non-whitespace
+
+  -misc-keywords:
+  - match: (?:assume|let|var){{b}}
+    scope: storage.type.variable.dascript keyword.declaration.variable.dascript
+  - match: expect{{b}}
+    scope: keyword.control.exception.assert.dascript
+  - match: unsafe{{b}}
+    scope: keyword.control.dascript
+  - match: return{{b}}
+    scope: keyword.control.flow.return.dascript
+  - match: yield{{b}}
+    scope: keyword.control.flow.yield.dascript
+  - match: with{{b}}
+    scope: keyword.control.flow.with.dascript
+  - match: delete{{b}}
+    scope: keyword.control.dascript
+  - match: pass{{b}}
+    scope: keyword.control.flow.pass.dascript
+  - match: |-
+      (?x:
+        (?: (\?) [ \t]*)? (as)
+      | (is)
+      ){{b}}
+    captures:
+      1: keyword.operator.logical.dascript
+      2: keyword.operator.word.dascript
+      3: keyword.operator.word.dascript
+    push:
+    - include: -pop-on-unexpected
+    - match: '{{identifier}}'
+      scope: constant.other.variant.dascript
+      pop: true
+    - include: -pop-on-non-whitespace
+  - match: (?:addr|deref|new){{b}}
+    scope: keyword.operator.word.dascript
+  - match: '{{language_constant}}'
+    scope: constant.language.dascript
+  - match: (?:self|this|_+){{b}}
+    scope: variable.language.dascript
+  - match: print_flags_debugger{{b}}
+    scope: support.constant.dascript
+  # Keywords below are matched by other parts of our code when they are encountered at their
+  # appropriate position. We list them here as well to be sure they are highlighted even when they
+  # do not make sense.
+  - match: (?:abstract|aka|const|(?:ex|im)plicit|override|private|public|sealed|shared){{b}}
+    scope: storage.modifier.dascript
+  - match: operator{{b}}
+    scope: keyword.other.dascript
+  - match: (?:{{basic_type}}|auto){{b}}
+    scope: storage.type.dascript
+
+  #
+  # Operators.
+  #
+  -punctuation:
+  - match: <\|
+    scope: punctuation.separator.argument.dascript
+  - match: \|>
+    scope: punctuation.separator.argument.dascript
+    push: [function-reference, namespace-reference]
+  - match: |-
+      (?x)
+      (?: \|\| | \^\^ | && | <<<? | >>>? | [-+*/%|^&]) =
+    scope: keyword.operator.assignment.augmented.dascript
+  - match: \|\||\^\^|&&|\?\?
+    scope: keyword.operator.logical.dascript
+  - match: <<<?|>>>?|[|^&~]
+    scope: keyword.operator.bitwise.dascript
+  - match: \.\.
+    scope: keyword.operator.range.dascript
+  - match: \$[$abcefitv]
+    scope: variable.function.dascript
+  - match: (@)[ \t]*(@)
+    captures:
+      1: keyword.operator.function.dascript
+      2: keyword.operator.function.dascript
+    # @@<(x: int): int> overloaded_func
+    push: [function-reference, namespace-reference, angle-brackets]
+  - match: '[$@]'
+    scope: storage.type.function.dascript keyword.declaration.function.dascript
+  - match: =>
+    scope: punctuation.separator.mapping.key-value.dascript
+  - match: '::'
+    scope: punctuation.accessor.double-colon.dascript
+  - match: ->
+    scope: punctuation.accessor.arrow.dascript
+  - match: (\??)(\.)
+    captures:
+      1: punctuation.accessor.other.dascript
+      2: punctuation.accessor.dot.dascript
+  - match: \?(?=\[)
+    scope: punctuation.accessor.other.dascript
+  - match: \?
+    scope: keyword.operator.comparison.dascript
+    push:
+    - match: '{{colon}}'
+      scope: keyword.operator.comparison.dascript
+      pop: true
+    - include: -pop-on-unpaired-or-unexpected
+    - include: main
+  - match: '[-+*/]'
+    scope: keyword.operator.arithmetic.dascript
+  - match: '%'
+    scope: keyword.operator.arithmetic.dascript
+    push: [reader-macro, namespace-reference]
+  - match: :=
+    scope: keyword.operator.assignment.clone.dascript
+  - match: <-
+    scope: keyword.operator.assignment.move.dascript
+  - match: '[!=]=|[<>]=?'
+    scope: keyword.operator.comparison.dascript
+  - match: =
+    scope: keyword.operator.assignment.dascript
+  - match: '!'
+    scope: keyword.operator.logical.dascript
+  - match: '#'
+    scope: keyword.operator.type.dascript
+  - match: ':'
+    scope: punctuation.separator.type.dascript
+    push: [type-postfix, type, namespace-reference]
+  - match: ','
+    scope: punctuation.separator.dascript
+  - match: ;
+    scope: punctuation.terminator.dascript
+  # In fact, `\` is invalid token in daScript, but since there are reader macros, which can change
+  # the syntax arbitrarily (see below), we speculatively treat it as an escape character. Whatever
+  # that could mean.
+  - match: \\.?
+    scope: constant.character.escape.dascript
+
+  function-reference:
+  - include: -pop-on-unexpected
+  - match: '{{identifier}}'
+    scope: variable.function.dascript
+    pop: true
+  - include: -pop-on-non-whitespace
+
+  # Reader macros are procedural macros that consume source code character by character, apply
+  # arbitrary transformations to it, and decide themselves when to stop. That means we do not know
+  # what is the syntax of the fragment processed by a macro. We do not even know where this fragment
+  # ends! Therefore, the most correct solution would be to mark the rest of the file, till EOF,
+  # as `string.unquoted`. Obviously, this is unacceptable so let's hope the syntax will be more
+  # or less compatible with daScript's syntax (or at least won't break the whole thing). I tried
+  # hard to make the grammar lenient.
+  # Docs on this magic: https://dascript.org/doc/reference/language/macros.html#astreadermacro
+  reader-macro:
+  # Built-in heredoc macro.
+  - match: (_esc)[ \t]*(~)
+    captures:
+      1: keyword.operator.word.macro.dascript
+      2: keyword.operator.macro.dascript
+    set:
+    - meta_include_prototype: false
+    - meta_content_scope: string.unquoted.dascript
+    - match: (%)(_esc)
+      captures:
+        1: keyword.operator.macro.dascript
+        2: keyword.operator.word.macro.dascript
+      pop: true
+  # From `daslib/regex_boost`.
+  - match: (regex)[ \t]*(~)
+    captures:
+      1: keyword.operator.word.macro.dascript
+      2: keyword.operator.macro.dascript
+    set:
+    - match: '%%'
+      scope: keyword.operator.macro.dascript
+      pop: true
+    - match: ''
+      embed: scope:source.regexp
+      embed_scope: string.regexp.dascript
+      escape: (?=%%)
+  # General macro.
+  - match: ({{identifier}})[ \t]*(~)
+    captures:
+      1: keyword.operator.word.macro.dascript
+      2: keyword.operator.macro.dascript
+    pop: true # No idea what syntax we are diving into...
+  - include: -pop-on-non-whitespace
