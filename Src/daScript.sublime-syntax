@@ -5,7 +5,6 @@ file_extensions: [das]
 scope: source.dascript
 
 # https://dascript.org/doc/reference/language/lexical_structure.html
-# TODO: Type constructors.
 # TODO: Arguments in block and lambda definitions.
 # TODO: Apply correct scope to anonymous function's `=>`.
 # TODO: Use `meta.*` for everything.
@@ -26,7 +25,7 @@ variables:
   # | label | let | module | options | recover | require | return | (?:static_)?(?:el)?if
   # | struct | try | typedef | var | while | yield
   # )
-  critical_keyword: class|def|enum|goto|include|label|module|options|require|struct|typedef
+  critical_keyword: class|def|enum|for|goto|include|label|module|options|require|struct|typedef
   language_constant: (?:true|false|null){{b}}
   basic_type: bool|double|float[234]?|string|u?int(?:[2348]|16|64)?|u?range|void
   generic_type: array|block|function|iterator|lambda|smart_ptr|table|tuple
@@ -86,7 +85,7 @@ contexts:
   - match: (?![ \t])
     pop: true
 
-  -pop-on-non-whitespace-multiline:
+  pop-on-non-whitespace-multiline:
   - match: (?=[^ \t\n])
     pop: true
 
@@ -179,7 +178,7 @@ contexts:
   #
   -any-brackets:
   - include: -parens
-  - include: -brackets
+  - include: -augmented-brackets
   - include: -braces
   - match: '[\)\]\}]'
     scope: invalid.illegal.unpaired.dascript
@@ -188,6 +187,29 @@ contexts:
   - match: \(
     scope: punctuation.section.group.begin.dascript
     push: [parens-contents, parens-contents-start]
+
+  -augmented-brackets:
+  - match: \[\[
+    scope: punctuation.section.brackets.begin.dascript
+    push:
+    - brackets-contents
+    - brackets-contents
+    - type-postfix
+    - type
+    - namespace
+    - pop-on-non-whitespace-multiline
+  - match: (\[)(\{)
+    captures:
+      1: punctuation.section.brackets.begin.dascript
+      2: punctuation.section.block.begin.dascript
+    push:
+    - brackets-contents
+    - braces-contents
+    - type-postfix
+    - type
+    - namespace
+    - pop-on-non-whitespace-multiline
+  - include: -brackets
 
   -brackets:
   - match: \[
@@ -227,7 +249,7 @@ contexts:
   - match: \[
     scope: punctuation.section.brackets.begin.dascript
     set: [brackets-contents, named-arguments-start]
-  - include: -pop-on-non-whitespace-multiline
+  - include: pop-on-non-whitespace-multiline
 
   named-arguments-start:
   - include: -pop-on-unexpected
@@ -250,8 +272,8 @@ contexts:
     - match: :=
       scope: keyword.operator.assignment.clone.dascript
       set: named-arguments
-    - include: -pop-on-non-whitespace-multiline
-  - include: -pop-on-non-whitespace-multiline
+    - include: pop-on-non-whitespace-multiline
+  - include: pop-on-non-whitespace-multiline
 
   named-arguments:
   - match: ','
@@ -261,7 +283,7 @@ contexts:
     - match: '{{identifier}}'
       scope: variable.parameter.dascript
       pop: true
-    - include: -pop-on-non-whitespace-multiline
+    - include: pop-on-non-whitespace-multiline
   - match: (?=\])
     pop: true
   - include: main
@@ -269,7 +291,7 @@ contexts:
   #
   # Types.
   #
-  namespace-reference:
+  namespace:
   - include: -pop-on-unexpected
   - match: (?:({{identifier}})[ \t]*)?(::)
     captures:
@@ -314,7 +336,7 @@ contexts:
   - match: '{{identifier}}'
     scope: entity.name.type.inferred.dascript
     pop: true
-  - include: -pop-on-non-whitespace-multiline
+  - include: pop-on-non-whitespace-multiline
 
   type-postfix:
   - match: (?:(=)[ \t]*)?(const|(?:ex|im)plicit){{b}}
@@ -325,7 +347,7 @@ contexts:
     scope: storage.modifier.dascript
   - match: '{{left_angle_bracket}}'
     scope: punctuation.definition.generic.begin.dascript
-    push: [generic-arguments, type-postfix, type, namespace-reference]
+    push: [generic-arguments, type-postfix, type, namespace]
   - include: -brackets # Arrays.
   - include: -pop-on-non-whitespace
 
@@ -354,9 +376,9 @@ contexts:
     captures:
       1: variable.other.dascript
       2: punctuation.separator.type.dascript
-    set: [generic-named-arguments, type-postfix, type, namespace-reference]
+    set: [generic-named-arguments, type-postfix, type, namespace]
   - match: (?=[{{identifier_first_char}}])
-    push: [type-postfix, type, namespace-reference]
+    push: [type-postfix, type, namespace]
   - match: ;
     scope: punctuation.separator.sequence.dascript
   - include: main
@@ -372,7 +394,7 @@ contexts:
   -colon-and-type:
   - match: '{{colon}}'
     scope: punctuation.separator.type.dascript
-    push: [type-postfix, type, namespace-reference]
+    push: [type-postfix, type, namespace]
 
   callable-parameter-name:
   - match: var{{b}}
@@ -381,7 +403,7 @@ contexts:
   - match: '{{identifier}}'
     scope: variable.parameter.dascript
     pop: true
-  - include: -pop-on-non-whitespace-multiline
+  - include: pop-on-non-whitespace-multiline
 
   callable-parameters:
   - meta_scope: meta.parameters.dascript
@@ -395,7 +417,7 @@ contexts:
     - match: '{{identifier}}'
       scope: variable.other.dascript
       pop: true
-    - include: -pop-on-non-whitespace-multiline
+    - include: pop-on-non-whitespace-multiline
   - include: -colon-and-type
   - match: '[,;]'
     scope: punctuation.separator.argument.dascript
@@ -409,7 +431,7 @@ contexts:
     - - meta_scope: meta.function.return-type.dascript
       - include: type-postfix
     - type
-    - namespace-reference
+    - namespace
   - include: -pop-on-non-whitespace
 
   #
@@ -650,20 +672,20 @@ contexts:
       - match: '{{identifier}}'
         scope: entity.name.type.dascript
         push: typedef-value
-      - include: -pop-on-non-whitespace-multiline
-    - include: -pop-on-non-whitespace-multiline
+      - include: pop-on-non-whitespace-multiline
+    - include: pop-on-non-whitespace-multiline
 
   typedef-entry:
   - include: -pop-on-unexpected
   - match: '{{identifier}}'
     scope: entity.name.type.dascript
     set: typedef-value
-  - include: -pop-on-non-whitespace-multiline
+  - include: pop-on-non-whitespace-multiline
 
   typedef-value:
   - match: '{{equal}}'
     scope: keyword.operator.assignment.dascript
-    set: [type-postfix, type, namespace-reference]
+    set: [type-postfix, type, namespace]
   - include: -pop-on-non-whitespace
 
   -variant-stmt:
@@ -767,7 +789,7 @@ contexts:
   angle-brackets:
   - match: '{{left_angle_bracket}}'
     scope: punctuation.definition.generic.begin.dascript
-    set: [generic-arguments, type-postfix, type, namespace-reference]
+    set: [generic-arguments, type-postfix, type, namespace]
   - include: -pop-on-non-whitespace
 
   -typeinfo-expr:
@@ -822,7 +844,7 @@ contexts:
     - include: -pop-on-non-whitespace
   - match: new{{b}}
     scope: keyword.operator.word.dascript
-    push: [type-postfix, type, namespace-reference]
+    push: [type-postfix, type, namespace]
   - match: (?:addr|deref){{b}}
     scope: keyword.operator.word.dascript
   - match: '{{language_constant}}'
@@ -849,7 +871,7 @@ contexts:
     scope: punctuation.separator.argument.dascript
   - match: \|>
     scope: punctuation.separator.argument.dascript
-    push: [function-reference, namespace-reference]
+    push: [function-reference, namespace]
   - match: |-
       (?x)
       (?: \|\| | \^\^ | && | <<<? | >>>? | [-+*/%|^&]) =
@@ -867,7 +889,7 @@ contexts:
       1: keyword.operator.function.dascript
       2: keyword.operator.function.dascript
     # @@<(x: int): int> overloaded_func
-    push: [function-reference, namespace-reference, angle-brackets]
+    push: [function-reference, namespace, angle-brackets]
   - match: '[$@]'
     scope: storage.type.function.dascript keyword.declaration.function.dascript
   - match: =>
@@ -894,7 +916,7 @@ contexts:
     scope: keyword.operator.arithmetic.dascript
   - match: '%'
     scope: keyword.operator.arithmetic.dascript
-    push: [reader-macro, namespace-reference]
+    push: [reader-macro, namespace]
   - match: :=
     scope: keyword.operator.assignment.clone.dascript
   - match: <-
@@ -909,7 +931,7 @@ contexts:
     scope: keyword.operator.type.dascript
   - match: ':'
     scope: punctuation.separator.type.dascript
-    push: [type-postfix, type, namespace-reference]
+    push: [type-postfix, type, namespace]
   - match: ','
     scope: punctuation.separator.dascript
   - match: ;
