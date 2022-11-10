@@ -5,8 +5,6 @@ file_extensions: [das]
 scope: source.dascript
 
 # https://dascript.org/doc/reference/language/lexical_structure.html
-# TODO: Arguments in block and lambda definitions.
-# TODO: Apply correct scope to anonymous function's `=>`.
 # TODO: Use `meta.*` for everything.
 # TODO: Annotations.
 
@@ -17,6 +15,10 @@ variables:
   b: (?![{{identifier_char}}])
   char_escape: '[bfnrt\\]'
   string_escape: '[bfnrtv"/{}\\]'
+  colon: :(?![:=])
+  equal: =(?![=>])
+  minus: -(?![-=>])
+  left_angle_bracket: <(?![-<=|])
   # If we process something from this list incorrectly, chances are good that we will mess up
   # a large part of the file.
   # More complete list (as an optimization, not checked):
@@ -29,10 +31,6 @@ variables:
   language_constant: (?:true|false|null){{b}}
   basic_type: bool|double|float[234]?|string|u?int(?:[2348]|16|64)?|u?range|void
   generic_type: array|block|function|iterator|lambda|smart_ptr|table|tuple
-  colon: :(?![:=])
-  equal: =(?![=>])
-  minus: -(?![-=>])
-  left_angle_bracket: <(?![-<=|])
 
 contexts:
   prototype:
@@ -884,14 +882,7 @@ contexts:
     scope: keyword.operator.range.dascript
   - match: \$[$abcefitv]
     scope: variable.function.dascript
-  - match: (@)[ \t]*(@)
-    captures:
-      1: keyword.operator.function.dascript
-      2: keyword.operator.function.dascript
-    # @@<(x: int): int> overloaded_func
-    push: [function-reference, namespace, angle-brackets]
-  - match: '[$@]'
-    scope: storage.type.function.dascript keyword.declaration.function.dascript
+  - include: -function-operators # @@, $, @
   - match: =>
     scope: punctuation.separator.mapping.key-value.dascript
   - match: '::'
@@ -927,8 +918,6 @@ contexts:
     scope: keyword.operator.assignment.dascript
   - match: '!'
     scope: keyword.operator.logical.dascript
-  - match: '#'
-    scope: keyword.operator.type.dascript
   - match: ':'
     scope: punctuation.separator.type.dascript
     push: [type-postfix, type, namespace]
@@ -936,6 +925,8 @@ contexts:
     scope: punctuation.separator.dascript
   - match: ;
     scope: punctuation.terminator.dascript
+  - match: '#'
+    scope: storage.modifier.dascript
   # In fact, `\` is invalid token in daScript, but since there are reader macros, which can change
   # the syntax arbitrarily (see below), we speculatively treat it as an escape character. Whatever
   # that could mean.
@@ -948,6 +939,45 @@ contexts:
     scope: variable.function.dascript
     pop: true
   - include: -pop-on-non-whitespace
+
+  -function-operators:
+  - match: (@)[ \t]*(@)[ \t]*(?=\(|<\|)
+    captures:
+      1: storage.type.function.dascript keyword.declaration.function.dascript
+      2: storage.type.function.dascript keyword.declaration.function.dascript
+    push: anonymous-function
+  - match: (@)[ \t]*(@)
+    captures:
+      1: keyword.operator.function.dascript
+      2: keyword.operator.function.dascript
+    push:
+    - include: -anonymous-function
+    # @@<(x: int): int> overloaded_func
+    - match: '{{left_angle_bracket}}'
+      scope: punctuation.definition.generic.begin.dascript
+      set: [function-reference, namespace, generic-arguments, type-postfix, type, namespace]
+    - include: function-reference
+  - match: '[$@]'
+    scope: storage.type.function.dascript keyword.declaration.function.dascript
+    push: anonymous-function
+
+  anonymous-function:
+  - include: -anonymous-function
+  - include: pop-on-non-whitespace-multiline
+
+  -anonymous-function:
+  - match: <\|
+    scope: punctuation.separator.argument.dascript
+  - match: \(
+    scope: punctuation.section.group.begin.dascript
+    set:
+    - - match: =>
+        scope: storage.type.function.dascript keyword.declaration.function.dascript
+        pop: true
+      - include: pop-on-non-whitespace-multiline
+    - callable-return-type
+    - callable-parameters
+    - callable-parameter-name
 
   # Reader macros are procedural macros that consume source code character by character, apply
   # arbitrary transformations to it, and decide themselves when to stop. That means we do not know
