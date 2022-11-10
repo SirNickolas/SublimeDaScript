@@ -18,6 +18,7 @@ variables:
   colon: :(?![:=])
   equal: =(?![=>])
   minus: -(?![-=>])
+  left_bracket: \[(?![\[\{])
   left_angle_bracket: <(?![-<=|])
   # If we process something from this list incorrectly, chances are good that we will mess up
   # a large part of the file.
@@ -176,7 +177,7 @@ contexts:
   #
   -any-brackets:
   - include: -parens
-  - include: -augmented-brackets
+  - include: -brackets
   - include: -braces
   - match: '[\)\]\}]'
     scope: invalid.illegal.unpaired.dascript
@@ -186,7 +187,7 @@ contexts:
     scope: punctuation.section.group.begin.dascript
     push: [parens-contents, parens-contents-start]
 
-  -augmented-brackets:
+  -brackets:
   - match: \[\[
     scope: punctuation.section.brackets.begin.dascript
     push:
@@ -207,9 +208,6 @@ contexts:
     - type
     - namespace
     - pop-on-non-whitespace-multiline
-  - include: -brackets
-
-  -brackets:
   - match: \[
     scope: punctuation.section.brackets.begin.dascript
     push: brackets-contents
@@ -343,10 +341,12 @@ contexts:
       2: storage.modifier.dascript
   - match: '[&?#]+|{{minus}}'
     scope: storage.modifier.dascript
+  - match: '{{left_bracket}}'
+    scope: punctuation.section.brackets.begin.dascript
+    push: brackets-contents
   - match: '{{left_angle_bracket}}'
     scope: punctuation.definition.generic.begin.dascript
     push: [generic-arguments, type-postfix, type, namespace]
-  - include: -brackets # Arrays.
   - include: -pop-on-non-whitespace
 
   angle-brackets-with-names:
