@@ -440,7 +440,7 @@ contexts:
     push: brackets-contents
   - match: '{{left_angle_bracket}}'
     scope: punctuation.definition.generic.begin.dascript
-    push: [generic-arguments, type-postfix, type, namespace]
+    push: [generic-arguments, namespace]
   - include: -pop-on-non-whitespace
 
   angle-brackets-with-names:
@@ -449,40 +449,55 @@ contexts:
     set: generic-named-arguments
   - include: -pop-on-non-whitespace
 
-  -generic-arguments-common:
-  - match: '>'
-    scope: punctuation.definition.generic.end.dascript
-    pop: true
-  # Prototypes of callables can only be written inside generics.
-  - match: \(
-    scope: punctuation.section.group.begin.dascript
-    push: [callable-return-type, callable-parameters, callable-parameter-name]
-  # Silently pop in case we entered the generic by mistake.
-  - match: (?=[\)\]\}])
-    pop: true
-  - include: -pop-on-unexpected
-
-  # E.g., `table<string; int>` or `block<(x: int): bool>`.
   generic-arguments:
-  - include: -generic-arguments-common
-  - match: (?:({{identifier}})[ \t]*)?(:)
-    # Turned out there actually were names.
+  # We've already stripped the namespace, don't have to worry about `::` here.
+  - match: ({{identifier}})[ \t]*(:)(?!=)
     captures:
       1: variable.other.dascript
       2: punctuation.separator.type.dascript
     set: [generic-named-arguments, type-postfix, type, namespace]
-  - match: (?=[{{identifier_first_char}}])
-    push: [type-postfix, type, namespace]
+  - match: \(
+    scope: punctuation.section.group.begin.dascript
+    set:
+    - generic-unnamed-arguments-tail
+    - callable-return-type
+    - callable-parameters
+    - callable-parameter-name
+  - match: ''
+    set: [generic-unnamed-arguments-tail, type-postfix, type]
+
+  -generic-arguments-end:
+  - match: '>(?!=)' # Lexer is able to split `>>` and `>>>` but not `>=`, `>>=`, or `>>>=`.
+    scope: punctuation.definition.generic.end.dascript
+    pop: true
+  # Silently pop in case we entered the generic by mistake.
+  - match: (?=[\)\]\}])
+    pop: true
+
+  # E.g., `table<string; int>` or `block<(x: int): bool>`.
+  generic-unnamed-arguments-tail:
+  - include: -generic-arguments-end
   - match: ;
     scope: punctuation.separator.sequence.dascript
+    set: [generic-arguments, namespace]
+  - match: '{{colon}}'
+    # Turned out there actually were names.
+    scope: punctuation.separator.type.dascript
+    set: [generic-named-arguments, type-postfix, type, namespace]
+  - include: -pop-on-unexpected
   - include: -everything
 
-  # E.g., `variant<i: int; s: string>`.
+  # E.g., `variant<i: int; s: string>`. Once we see a named argument, we expect all subsequent
+  # arguments to have a name, too. Though `tuple<i: int; float>` is perfectly valid.
   generic-named-arguments:
-  - include: -generic-arguments-common
+  - include: -generic-arguments-end
   - include: -colon-and-type
   - match: ;
     scope: punctuation.separator.mapping.dascript
+  - match: \(
+    scope: punctuation.section.group.begin.dascript
+    push: [callable-return-type, callable-parameters, callable-parameter-name]
+  - include: -pop-on-unexpected
   - include: -everything
 
   -colon-and-type:
@@ -916,7 +931,7 @@ contexts:
   angle-brackets:
   - match: '{{left_angle_bracket}}'
     scope: punctuation.definition.generic.begin.dascript
-    set: [generic-arguments, type-postfix, type, namespace]
+    set: [generic-arguments, namespace]
   - include: -pop-on-non-whitespace
 
   -typeinfo-expr:
@@ -1086,7 +1101,7 @@ contexts:
     # @@<(x: int): int> overloaded_func
     - match: '{{left_angle_bracket}}'
       scope: punctuation.definition.generic.begin.dascript
-      set: [function-reference, namespace, generic-arguments, type-postfix, type, namespace]
+      set: [function-reference, namespace, generic-arguments, namespace]
     - include: function-reference
   - match: '[$@]'
     scope: storage.type.function.dascript keyword.declaration.function.dascript
