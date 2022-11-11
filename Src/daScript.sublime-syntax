@@ -7,7 +7,6 @@ scope: source.dascript
 # https://dascript.org/doc/reference/language/lexical_structure.html
 # TODO: Use `meta.*` for everything.
 # TODO: Annotations vs. type constructors at BOL.
-# TODO: `include`.
 # TODO: `require`.
 # TODO: Simplify `typedef`.
 
@@ -514,6 +513,7 @@ contexts:
   -words:
   - include: -module-stmt
   - include: -require-stmts
+  - include: -include-stmts
   - include: -def-stmt
   - include: -struct-stmt
   - include: -class-stmt
@@ -578,7 +578,7 @@ contexts:
       - include: -pop-on-non-whitespace
 
   -require-stmts:
-  - match: (?:require|include){{b}}
+  - match: require{{b}}
     scope: keyword.control.import.dascript
     push:
     - match: (?=[{{identifier_first_char}}/.])
@@ -594,6 +594,12 @@ contexts:
       - match: ''
         pop: true
     - include: -pop-on-non-whitespace
+
+  -include-stmts:
+  - match: (?m)(include){{b}}[ \t]*(.*)
+    captures:
+      1: keyword.control.import.dascript
+      2: string.unquoted.dascript
 
   -def-stmt:
   - match: def{{b}}
