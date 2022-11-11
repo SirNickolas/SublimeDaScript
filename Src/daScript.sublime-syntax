@@ -119,10 +119,6 @@ contexts:
   - match: (?=(?:{{critical_keyword}}){{b}})
     pop: true
 
-  -pop-on-unpaired-or-unexpected:
-  - match: (?=[\)\]\}]|(?:{{critical_keyword}}){{b}})
-    pop: true
-
   #
   # Annotations.
   #
@@ -454,7 +450,9 @@ contexts:
     scope: punctuation.section.group.begin.dascript
     push: [callable-return-type, callable-parameters, callable-parameter-name]
   # Silently pop in case we entered the generic by mistake.
-  - include: -pop-on-unpaired-or-unexpected
+  - match: (?=[\)\]\}])
+    pop: true
+  - include: -pop-on-unexpected
 
   # E.g., `table<string; int>` or `block<(x: int): bool>`.
   generic-arguments:
@@ -1024,7 +1022,9 @@ contexts:
     - match: '{{colon}}'
       scope: keyword.operator.comparison.dascript
       pop: true
-    - include: -pop-on-unpaired-or-unexpected
+    - match: (?=[\)\]\}]|as{{b}}) # `?/**/as` - not a ternary conditional operator.
+      pop: true
+    - include: -pop-on-unexpected
     - include: -everything
   - match: '[-+*/]'
     scope: keyword.operator.arithmetic.dascript
