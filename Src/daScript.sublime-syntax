@@ -70,13 +70,31 @@ contexts:
   # Entry point.
   #
   main:
+  - match: '[ \t]+'
+    set:
+    - include: -simple-annotations
+    - include: -rich-annotations
+    - match: (?![ \t])
+      set:
+      # - include: -indented-def-stmt
+      - include: main-without-annotations
+  - match: (?=\[)
+    set: annotations-at-bol
+  - match: (?=.)
+    set: main-without-annotations
+
+  annotations-at-bol:
   - include: -simple-annotations
   - include: -rich-annotations
-  - match: (?=[^ \t\n])
-    set:
-    - include: -everything
-    - match: $
-      set: main
+  - match: (?![ \t])
+    set: main-without-annotations
+
+  main-without-annotations:
+  - match: $
+    set: main
+  - match: ^(?=\[(?!\{))
+    set: annotations-at-bol
+  - include: -everything
 
   -everything:
   - include: -number-literals
@@ -612,7 +630,7 @@ contexts:
   -def-stmt:
   - match: def{{b}}
     scope: storage.type.function.dascript keyword.declaration.function.dascript
-    push: [callable-return-type, function-parameters, function-name]
+    push: [function-body, callable-return-type, function-parameters, function-name]
 
   function-name:
   - match: operator{{b}}
@@ -647,6 +665,18 @@ contexts:
     - callable-parameter-name
   - include: -unrecognized-identifiers
   - include: -pop-on-non-whitespace
+
+  function-body:
+  - match: $
+    set:
+    - match: '[ \t]+'
+      set: function-body
+    - match: (?=.)
+      pop: true
+  - match: def{{b}} # Successive class methods should reuse this stack frame and not put new ones.
+    scope: storage.type.function.dascript keyword.declaration.function.dascript
+    push: [callable-return-type, function-parameters, function-name]
+  - include: -everything
 
   -unrecognized-identifiers:
   - include: -pop-on-unexpected
@@ -749,7 +779,7 @@ contexts:
   typedef-entry-postfix:
   - match: \n
     set:
-    - match: '[ \t]'
+    - match: '[ \t]+'
       set: typedef-entry
     - match: (?=.)
       pop: true
