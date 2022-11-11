@@ -6,7 +6,10 @@ scope: source.dascript
 
 # https://dascript.org/doc/reference/language/lexical_structure.html
 # TODO: Use `meta.*` for everything.
-# TODO: Annotations.
+# TODO: Annotations vs. type constructors at BOL.
+# TODO: `include`.
+# TODO: `require`.
+# TODO: Simplify `typedef`.
 
 variables:
   identifier_first_char: A-Za-z_
@@ -70,6 +73,15 @@ contexts:
   # Entry point.
   #
   main:
+  - include: -simple-annotations
+  - include: -rich-annotations
+  - match: (?=[^ \t\n])
+    set:
+    - include: -everything
+    - match: $
+      set: main
+
+  -everything:
   - include: -number-literals
   - include: -character-literals
   - include: -string-literals
@@ -95,6 +107,76 @@ contexts:
   -pop-on-unpaired-or-unexpected:
   - match: (?=[\)\]\}]|(?:{{critical_keyword}}){{b}})
     pop: true
+
+  #
+  # Annotations.
+  #
+  -simple-annotations:
+  - match: \[\[
+    scope: punctuation.section.brackets.begin.dascript
+    push: [brackets-contents, brackets-contents, simple-annotation, annotation-identifier]
+
+  -rich-annotations:
+  - match: \[(?!\{)
+    scope: punctuation.section.brackets.begin.dascript
+    push: [brackets-contents, rich-annotation, annotation-identifier]
+
+  annotation-identifier:
+  - include: -pop-on-unexpected
+  - match: (?=[{{identifier_first_char}}])
+    set:
+    - clear_scopes: 1
+    - meta_scope: meta.annotation.identifier.dascript variable.annotation.dascript
+    - meta_include_prototype: false
+    - match: (?![{{identifier_char}}])
+      pop: true
+  - include: pop-on-non-whitespace-multiline
+
+  simple-annotation:
+  - meta_content_scope: meta.annotation.dascript
+  - match: '{{equal}}'
+    scope: keyword.operator.assignment.dascript
+    push:
+    - clear_scopes: 1
+    - meta_scope: meta.annotation.parameters.dascript
+    - match: (?=[,;\]])
+      pop: true
+    - include: -everything
+  - match: ','
+    scope: punctuation.separator.dascript
+    push: annotation-identifier
+  - include: pop-on-non-whitespace-multiline
+
+  rich-annotation:
+  - meta_content_scope: meta.annotation.dascript
+  - match: \(
+    scope: punctuation.section.group.begin.dascript
+    push:
+    - - clear_scopes: 1
+      - meta_scope: meta.annotation.parameters.dascript
+      - match: \)
+        scope: punctuation.section.group.end.dascript
+        pop: true
+      - include: -argument-comma
+      - include: -everything
+    - argument-name
+  - match: ','
+    scope: punctuation.separator.dascript
+    # TODO: Support qualified annotation identifiers.
+    push: annotation-identifier
+  - include: pop-on-non-whitespace-multiline
+
+  -argument-comma:
+  - match: ','
+    scope: punctuation.separator.argument.dascript
+    push: argument-name
+
+  argument-name:
+  - include: -pop-on-unexpected
+  - match: '{{identifier}}'
+    scope: variable.parameter.dascript
+    pop: true
+  - include: pop-on-non-whitespace-multiline
 
   #
   # Literals.
@@ -167,7 +249,7 @@ contexts:
       - match: \}
         scope: punctuation.section.interpolation.end.dascript
         pop: true
-      - include: main
+      - include: -everything
     - match: '"'
       scope: punctuation.definition.string.end.dascript
       pop: true
@@ -222,21 +304,21 @@ contexts:
   - match: \)
     scope: punctuation.section.group.end.dascript
     pop: true
-  - include: main
+  - include: -everything
 
   brackets-contents:
   - meta_scope: meta.brackets.dascript
   - match: \]
     scope: punctuation.section.brackets.end.dascript
     pop: true
-  - include: main
+  - include: -everything
 
   braces-contents:
   - meta_scope: meta.block.dascript
   - match: \}
     scope: punctuation.section.block.end.dascript
     pop: true
-  - include: main
+  - include: -everything
 
   #
   # Function calls with named arguments.
@@ -272,17 +354,10 @@ contexts:
   - include: pop-on-non-whitespace-multiline
 
   named-arguments:
-  - match: ','
-    scope: punctuation.separator.argument.dascript
-    push:
-    - include: -pop-on-unexpected
-    - match: '{{identifier}}'
-      scope: variable.parameter.dascript
-      pop: true
-    - include: pop-on-non-whitespace-multiline
+  - include: -argument-comma
   - match: (?=\])
     pop: true
-  - include: main
+  - include: -everything
 
   #
   # Types.
@@ -379,7 +454,7 @@ contexts:
     push: [type-postfix, type, namespace]
   - match: ;
     scope: punctuation.separator.sequence.dascript
-  - include: main
+  - include: -everything
 
   # E.g., `variant<i: int; s: string>`.
   generic-named-arguments:
@@ -387,7 +462,7 @@ contexts:
   - include: -colon-and-type
   - match: ;
     scope: punctuation.separator.mapping.dascript
-  - include: main
+  - include: -everything
 
   -colon-and-type:
   - match: '{{colon}}'
@@ -401,6 +476,7 @@ contexts:
   - match: '{{identifier}}'
     scope: variable.parameter.dascript
     pop: true
+  - include: -simple-annotations
   - include: pop-on-non-whitespace-multiline
 
   callable-parameters:
@@ -420,7 +496,7 @@ contexts:
   - match: '[,;]'
     scope: punctuation.separator.argument.dascript
     push: callable-parameter-name
-  - include: main
+  - include: -everything
 
   callable-return-type:
   - match: '{{colon}}'
@@ -436,7 +512,6 @@ contexts:
   # Statements and expressions.
   #
   -words:
-  - include: -options-stmt
   - include: -module-stmt
   - include: -require-stmts
   - include: -def-stmt
@@ -446,6 +521,7 @@ contexts:
   - include: -typedef-stmt
   - include: -variant-stmt
   - include: -bitfield-stmt
+  - include: -var-stmt
   - include: -conditional-stmts
   - include: -loop-stmts
   - include: -exception-stmts
@@ -476,15 +552,6 @@ contexts:
       2: variable.other.constant.enum.dascript
   - match: '{{identifier}}'
     scope: variable.other.dascript
-
-  -options-stmt:
-  - match: options{{b}}
-    scope: keyword.control.directive.dascript
-    push:
-    - match: '{{identifier}}'
-      scope: constant.other.directive.dascript
-      pop: true
-    - include: -pop-on-non-whitespace
 
   -declaration-modifiers:
   # We allow all of these for every construct that needs some. They are reserved keywords anyway.
@@ -665,7 +732,7 @@ contexts:
     # Indented `typedef` block.
     - match: ^([ \t]+)(?=[{{identifier_first_char}}])
       set:
-      - match: ^[ \t]*(?=[^ \t\n])(?<!\1)|(?=(?:{{critical_keyword}}){{b}})
+      - match: ^[ \t]*(?=[^ \t\n])(?<!\1)(?!//)|(?=(?:{{critical_keyword}}){{b}})
         pop: true
       - match: '{{identifier}}'
         scope: entity.name.type.dascript
@@ -713,6 +780,16 @@ contexts:
       scope: entity.name.bitfield.dascript
       pop: true
     - include: angle-brackets-with-names
+
+  -var-stmt:
+  - match: (?:assume|let|var){{b}}
+    scope: storage.type.variable.dascript keyword.declaration.variable.dascript
+    push:
+    - include: -declaration-modifiers
+    - match: \[\[
+      scope: punctuation.section.brackets.begin.dascript
+      set: [brackets-contents, brackets-contents, simple-annotation, annotation-identifier]
+    - include: -pop-on-non-whitespace
 
   -conditional-stmts:
   - match: (?:static_)?if{{b}}
@@ -801,7 +878,7 @@ contexts:
         - match: \)
           scope: punctuation.section.group.end.dascript
           pop: true
-        - include: main
+        - include: -everything
       - - match: '{{identifier}}'
           scope: constant.other.typeinfo.dascript
           set: angle-brackets-with-names
@@ -809,8 +886,8 @@ contexts:
     - include: -pop-on-non-whitespace
 
   -misc-keywords:
-  - match: (?:assume|let|var){{b}}
-    scope: storage.type.variable.dascript keyword.declaration.variable.dascript
+  - match: options{{b}}
+    scope: keyword.control.directive.dascript
   - match: expect{{b}}
     scope: keyword.control.exception.assert.dascript
   - match: unsafe{{b}}
@@ -881,7 +958,7 @@ contexts:
   - match: \.\.
     scope: keyword.operator.range.dascript
   - match: \$[$abcefitv]
-    scope: variable.function.dascript
+    scope: support.function.dascript
   - include: -function-operators # @@, $, @
   - match: =>
     scope: punctuation.separator.mapping.key-value.dascript
@@ -902,7 +979,7 @@ contexts:
       scope: keyword.operator.comparison.dascript
       pop: true
     - include: -pop-on-unpaired-or-unexpected
-    - include: main
+    - include: -everything
   - match: '[-+*/]'
     scope: keyword.operator.arithmetic.dascript
   - match: '%'
@@ -941,7 +1018,7 @@ contexts:
   - include: -pop-on-non-whitespace
 
   -function-operators:
-  - match: (@)[ \t]*(@)[ \t]*(?=\(|<\|)
+  - match: (@)[ \t]*(@)[ \t]*(?=[\(\[]|<\|)
     captures:
       1: storage.type.function.dascript keyword.declaration.function.dascript
       2: storage.type.function.dascript keyword.declaration.function.dascript
@@ -978,6 +1055,10 @@ contexts:
     - callable-return-type
     - callable-parameters
     - callable-parameter-name
+  - match: \[\[ # Capture specification.
+    scope: punctuation.section.brackets.begin.dascript
+    push: [brackets-contents, brackets-contents]
+  - include: -rich-annotations
 
   # Reader macros are procedural macros that consume source code character by character, apply
   # arbitrary transformations to it, and decide themselves when to stop. That means we do not know
