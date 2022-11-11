@@ -7,7 +7,6 @@ scope: source.dascript
 # https://dascript.org/doc/reference/language/lexical_structure.html
 # TODO: Use `meta.*` for everything.
 # TODO: Annotations vs. type constructors at BOL.
-# TODO: Simplify `typedef`.
 
 variables:
   identifier_first_char: A-Za-z_
@@ -29,7 +28,7 @@ variables:
   # | label | let | module | options | recover | require | return | (?:static_)?(?:el)?if
   # | struct | try | typedef | var | while | yield
   # )
-  critical_keyword: class|def|enum|for|goto|include|label|module|options|require|struct|typedef
+  critical_keyword: class|def|enum|for|goto|include|label|let|module|require|struct|typedef|var
   language_constant: (?:true|false|null){{b}}
   basic_type: bool|double|float[234]?|string|u?int(?:[2348]|16|64)?|u?range|void
   generic_type: array|block|function|iterator|lambda|smart_ptr|table|tuple
@@ -728,34 +727,36 @@ contexts:
   -typedef-stmt:
   - match: typedef{{b}}
     scope: storage.type.type.dascript keyword.declaration.type.dascript
-    push:
-    - include: -pop-on-unexpected
-    # Single `typedef`.
-    - match: '{{identifier}}'
-      scope: entity.name.type.dascript
-      set: typedef-value
-    # Brace-delimited `typedef` block.
-    - match: \{
-      scope: punctuation.section.block.begin.dascript
-      set:
-      - - meta_scope: meta.block.dascript
-        - match: ;
-          scope: punctuation.terminator.dascript
-          push: typedef-entry
-        - include: braces-contents
-      - typedef-entry
-    # Indented `typedef` block.
-    - match: ^([ \t]+)(?=[{{identifier_first_char}}])
-      set:
-      - match: ^[ \t]*(?=[^ \t\n])(?<!\1)(?!//)|(?=(?:{{critical_keyword}}){{b}})
-        pop: true
-      - match: '{{identifier}}'
-        scope: entity.name.type.dascript
-        push: typedef-value
-      - include: pop-on-non-whitespace-multiline
-    - include: pop-on-non-whitespace-multiline
+    push: typedef-entry
 
   typedef-entry:
+  - include: -pop-on-unexpected
+  - match: '{{identifier}}'
+    scope: entity.name.type.dascript
+    set: [typedef-entry-postfix, typedef-value]
+  - match: \{
+    scope: punctuation.section.block.begin.dascript
+    set:
+    - - meta_scope: meta.block.dascript
+      - match: ;
+        scope: punctuation.terminator.dascript
+        push: typedef-braced-entry
+      - include: braces-contents
+    - typedef-braced-entry
+  - match: (?![ \t])
+    set: typedef-entry-postfix
+
+  typedef-entry-postfix:
+  - match: \n
+    set:
+    - match: '[ \t]'
+      set: typedef-entry
+    - match: (?=.)
+      pop: true
+  - include: -pop-on-unexpected
+  - include: -everything
+
+  typedef-braced-entry:
   - include: -pop-on-unexpected
   - match: '{{identifier}}'
     scope: entity.name.type.dascript
