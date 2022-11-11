@@ -7,7 +7,6 @@ scope: source.dascript
 # https://dascript.org/doc/reference/language/lexical_structure.html
 # TODO: Use `meta.*` for everything.
 # TODO: Annotations vs. type constructors at BOL.
-# TODO: `require`.
 # TODO: Simplify `typedef`.
 
 variables:
@@ -545,7 +544,7 @@ contexts:
       (?x)
       ((?: _ [0-9_`]*)? [A-Z] [{{identifier_char}}]*)
       [ \t]+
-      (?! (?: [ai]s | in | {{critical_keyword}}) {{b}})
+      (?! (?: [ai]s | in | public | {{critical_keyword}}) {{b}})
       ({{identifier}})
     captures:
       1: support.type.dascript
@@ -581,19 +580,29 @@ contexts:
   - match: require{{b}}
     scope: keyword.control.import.dascript
     push:
-    - match: (?=[{{identifier_first_char}}/.])
-      set:
-      - meta_scope: meta.path.dascript
-      - meta_include_prototype: false
-      - match: '{{identifier}}'
-        scope: variable.other.dascript
-      - match: /(?![/*])
-        scope: punctuation.accessor.slash.dascript
+    - - match: /
+        scope: meta.path.dascript punctuation.accessor.slash.dascript
+        push: module-path-component
       - match: \.
-        scope: punctuation.accessor.dot.dascript
-      - match: ''
+        scope: meta.path.dascript punctuation.accessor.dot.dascript
+        push: module-path-component
+      - match: '%'
+        scope: meta.path.dascript punctuation.accessor.other.dascript
+        push: module-path-component
+      - match: as{{b}}
+        scope: keyword.control.import.as.dascript
         pop: true
-    - include: -pop-on-non-whitespace
+      - include: -pop-on-non-whitespace
+    - module-path-component
+
+  module-path-component:
+  - match: (?=(?:as|public){{b}})
+    pop: true
+  - include: -pop-on-unexpected
+  - match: '{{identifier}}'
+    scope: meta.path.dascript variable.other.dascript
+    pop: true
+  - include: -pop-on-non-whitespace
 
   -include-stmts:
   - match: (?m)(include){{b}}[ \t]*(.*)
