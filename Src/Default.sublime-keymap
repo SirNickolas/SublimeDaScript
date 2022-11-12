@@ -41,7 +41,7 @@
         {"key": "setting.auto_indent", "operator": "equal", "operand": true},
         {"key": "selector", "operand": "source.dascript - comment - string", "match_all": true},
         {"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
-        {"key": "following_text", "operator": "regex_contains", "operand": "^(?:[)}]|\\][ \t]*\\])", "match_all": true},
+        {"key": "following_text", "operator": "regex_contains", "operand": "^(?:[)}]|\\][ \t]*[])])", "match_all": true},
     ],
 }, {
     // Newline inside parentheses.
@@ -52,7 +52,7 @@
         {"key": "setting.auto_indent", "operator": "equal", "operand": true},
         {"key": "selector", "operand": "source.dascript - comment - string", "match_all": true},
         {"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
-        {"key": "following_text", "operator": "regex_contains", "operand": "^(?:[)}]|\\][ \t]*\\])", "match_all": true},
+        {"key": "following_text", "operator": "regex_contains", "operand": "^(?:[)}]|\\][ \t]*[])])", "match_all": true},
     ],
 },
 

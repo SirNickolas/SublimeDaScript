@@ -12,7 +12,7 @@
     <string>(?x)
       [ \t]*+ (?:
         [\){}]
-      | \] [ \t]*+ \]
+      | \] [ \t]*+ [\)\]]
       | (?: elif|else|recover|finally) (?! [A-Za-z0-9_`])
       )
     </string>
