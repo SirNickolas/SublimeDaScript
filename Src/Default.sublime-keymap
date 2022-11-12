@@ -7,7 +7,7 @@
     "args": {"contents": "<$0>"},
     "context": [
         {"key": "setting.auto_match_enabled", "operator": "equal", "operand": true},
-        {"key": "selector", "operand": "source.dascript - comment - string", "match_all": true},
+        {"key": "selector", "operand": "source.dascript - (source.dascript comment, source.dascript string)", "match_all": true},
         {"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
         // We can simply list all generic constructs that are valid in the language, lucky us.
         {"key": "preceding_text", "operator": "regex_contains", "operand": "(?<![A-Za-z0-9_`])(?:array|bitfield|block|function|generator|iterator|lambda|reinterpret|smart_ptr|table|tuple|type(?:info[ \t]*\\([ \t]*[A-Za-z_][A-Za-z0-9_`]*)?|(?:up)?cast|variant)[ \t]*$", "match_all": true},
@@ -39,7 +39,7 @@
     "args": {"file": "res://Packages/Default/Add Line in Braces.sublime-macro"},
     "context": [
         {"key": "setting.auto_indent", "operator": "equal", "operand": true},
-        {"key": "selector", "operand": "source.dascript - comment - string", "match_all": true},
+        {"key": "selector", "operand": "source.dascript - (source.dascript comment.block, source.dascript string)", "match_all": true},
         {"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
         {"key": "following_text", "operator": "regex_contains", "operand": "^(?:[)}]|\\][ \t]*[])])", "match_all": true},
     ],
@@ -50,7 +50,7 @@
     "args": {"file": "res://Packages/Default/Add Line in Braces.sublime-macro"},
     "context": [
         {"key": "setting.auto_indent", "operator": "equal", "operand": true},
-        {"key": "selector", "operand": "source.dascript - comment - string", "match_all": true},
+        {"key": "selector", "operand": "source.dascript - (source.dascript comment.block, source.dascript string)", "match_all": true},
         {"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
         {"key": "following_text", "operator": "regex_contains", "operand": "^(?:[)}]|\\][ \t]*[])])", "match_all": true},
     ],

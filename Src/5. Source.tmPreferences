@@ -4,7 +4,12 @@
 <plist version="1.0">
 <dict>
   <key>scope</key>
-  <string>source.dascript - string</string>
+  <string>
+    source.dascript - (
+      source.dascript comment,
+      source.dascript string
+    )
+  </string>
 
   <key>settings</key>
   <dict>

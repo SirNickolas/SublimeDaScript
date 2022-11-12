@@ -28,14 +28,20 @@
       meta.statement.with.dascript
     ) - (
       source.dascript meta.statement comment.block.dascript,
-      source.dascript meta.statement comment.block.documentation.dascript
+      source.dascript meta.statement comment.block.documentation.dascript,
+      source.dascript meta.statement string.quoted.double.dascript,
+      source.dascript meta.statement string.quoted.single.dascript,
+      source.dascript meta.statement string.unquoted.dascript
     )
   </string>
-  <!-- Comments are excluded to allow their usage for line splicing:
+  <!--
+    Comments are excluded to allow their usage for line splicing:
 
     if a && /*
     */ b && c
       f()
+
+    Strings are excluded since each their line would be indented one level further.
   -->
 
   <key>settings</key>
