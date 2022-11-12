@@ -15,6 +15,7 @@ variables:
   b: (?![{{identifier_char}}])
   char_escape: '[bfnrt\\]'
   string_escape: '[bfnrtv"/{}\\]'
+  macro_escape: \$(?:[a-z]{{b}}|\$)
   colon: :(?![:=])
   equal: =(?![=>])
   minus: -(?![-=>])
@@ -412,6 +413,13 @@ contexts:
   - match: '{{identifier}}'
     scope: support.type.dascript
     pop: true
+  - match: '{{macro_escape}}'
+    scope: support.function.macro-escape.dascript
+    set:
+    - match: \(
+      scope: punctuation.section.group.begin.dascript
+      set: parens-contents
+    - include: -pop-on-non-whitespace
   - include: -pop-on-non-whitespace
 
   auto-contents:
@@ -1001,8 +1009,8 @@ contexts:
     scope: keyword.operator.bitwise.dascript
   - match: \.\.
     scope: keyword.operator.range.dascript
-  - match: \$[$abcefitv]
-    scope: support.function.dascript
+  - match: '{{macro_escape}}'
+    scope: support.function.macro-escape.dascript
   - include: -function-operators # @@, $, @
   - match: =>
     scope: punctuation.separator.mapping.key-value.dascript
