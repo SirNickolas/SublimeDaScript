@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE plist PUBLIC
+  "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>scope</key>
+  <string>
+    entity.name.namespace.dascript,
+    entity.name.type.inferred.dascript - meta.statement.function.dascript
+  </string>
+  <!--
+    We exclude (i.e., do not forbid listing) types inside named functions' parameter lists
+    to not break those functions' regions into pieces.
+  -->
+
+  <key>settings</key>
+  <dict>
+    <key>showInSymbolList</key>
+    <integer>0</integer>
+
+    <key>showInIndexedSymbolList</key>
+    <integer>0</integer>
+  </dict>
+</dict>
+</plist>

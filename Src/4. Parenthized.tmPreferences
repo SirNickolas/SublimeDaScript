@@ -7,6 +7,7 @@
   <string>
     meta.group.dascript,
     meta.function.parameters.dascript,
+    meta.parameters.dascript,
     meta.brackets.dascript,
     meta.block.dascript
   </string>

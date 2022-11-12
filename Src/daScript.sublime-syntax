@@ -5,7 +5,6 @@ file_extensions: [das]
 scope: source.dascript
 
 # https://dascript.org/doc/reference/language/lexical_structure.html
-# TODO: Use `meta.*` for everything.
 # TODO: Annotations vs. type constructors at BOL.
 # TODO: Do not increase indentation after abstract method definitions.
 
@@ -523,7 +522,7 @@ contexts:
   - include: pop-on-non-whitespace-multiline
 
   callable-parameters:
-  - meta_scope: meta.function.parameters.dascript
+  - meta_scope: meta.parameters.dascript
   - match: \)
     scope: punctuation.section.group.end.dascript
     pop: true
@@ -711,17 +710,27 @@ contexts:
           :=
         | (?: [ai]s | delete) {{b}}
         | (?! [-+*/%|^&~<>!=?.\[\] \t])
-      pop: true
+      set: function-name-postfix
   - match: \+\+|-- # Prefix increment or decrement.
     set:
     - meta_scope: entity.name.function.dascript
     - match: operator{{b}}
-      pop: true
-    - include: -pop-on-non-whitespace
+      set: function-name-postfix
+    - include: -expect-function-name-postfix
   - include: -lenient-declaration-modifiers
   - match: '{{identifier}}'
     scope: entity.name.function.dascript
-    pop: true
+    set: function-name-postfix
+  - include: -expect-function-name-postfix
+
+  -expect-function-name-postfix:
+  - match: (?![ \t])
+    set: function-name-postfix
+
+  function-name-postfix:
+  - clear_scopes: 1
+  - meta_content_scope: meta.function.name-postfix.dascript
+  - include: -unrecognized-identifiers
   - include: -pop-on-non-whitespace
 
   function-parameters:
@@ -733,7 +742,6 @@ contexts:
       - meta_scope: meta.function.parameters.dascript
       - include: callable-parameters
     - callable-parameter-name
-  - include: -unrecognized-identifiers
   - include: -pop-on-non-whitespace
 
   function-body:
@@ -1217,7 +1225,8 @@ contexts:
         pop: true
       - include: -optionally-braced-block
     - callable-return-type
-    - callable-parameters
+    - - meta_scope: meta.function.parameters.dascript
+      - include: callable-parameters
     - callable-parameter-name
   - match: \[\[ # Capture specification.
     scope: punctuation.section.brackets.begin.dascript

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE plist PUBLIC
+  "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>scope</key>
+  <string>
+    entity.name.struct.dascript,
+    entity.name.class.dascript,
+    entity.name.enum.dascript,
+    entity.name.union.dascript,
+    entity.name.bitfield.dascript
+  </string>
+
+  <key>settings</key>
+  <dict>
+    <key>showInSymbolList</key>
+    <integer>1</integer>
+
+    <key>showInIndexedSymbolList</key>
+    <integer>1</integer>
+  </dict>
+</dict>
+</plist>
