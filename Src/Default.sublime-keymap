@@ -1,0 +1,59 @@
+[
+
+{
+    // Auto-pair angle brackets.
+    "keys": ["<"],
+    "command": "insert_snippet",
+    "args": {"contents": "<$0>"},
+    "context": [
+        {"key": "setting.auto_match_enabled", "operator": "equal", "operand": true},
+        {"key": "selector", "operand": "source.dascript - comment - string", "match_all": true},
+        {"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
+        // We can simply list all generic constructs that are valid in the language, lucky us.
+        {"key": "preceding_text", "operator": "regex_contains", "operand": "(?<![A-Za-z0-9_`])(?:array|bitfield|block|function|generator|iterator|lambda|reinterpret|smart_ptr|table|tuple|type(?:info[ \t]*\\([ \t]*[A-Za-z_][A-Za-z0-9_`]*)?|(?:up)?cast|variant)[ \t]*$", "match_all": true},
+    ],
+}, {
+    // Auto-pair angle brackets.
+    "keys": [">"],
+    "command": "move",
+    "args": {"by": "characters", "forward": true},
+    "context": [
+        {"key": "setting.auto_match_enabled", "operator": "equal", "operand": true},
+        {"key": "selector", "operand": "punctuation.definition.generic.end.dascript", "match_all": true},
+        {"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
+    ],
+}, {
+    // Auto-pair parentheses at the end of generic arguments (e.g., `block<(...)>`).
+    "keys": ["("],
+    "command": "insert_snippet",
+    "args": {"contents": "($0)"},
+    "context": [
+        {"key": "setting.auto_match_enabled", "operator": "equal", "operand": true},
+        {"key": "selector", "operand": "punctuation.definition.generic.end.dascript", "match_all": true},
+        {"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
+    ],
+}, {
+    // Newline inside parentheses.
+    "keys": ["enter"],
+    "command": "run_macro_file",
+    "args": {"file": "res://Packages/Default/Add Line in Braces.sublime-macro"},
+    "context": [
+        {"key": "setting.auto_indent", "operator": "equal", "operand": true},
+        {"key": "selector", "operand": "source.dascript - comment - string", "match_all": true},
+        {"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
+        {"key": "following_text", "operator": "regex_contains", "operand": "^(?:[)}]|\\][ \t]*\\])", "match_all": true},
+    ],
+}, {
+    // Newline inside parentheses.
+    "keys": ["shift+enter"],
+    "command": "run_macro_file",
+    "args": {"file": "res://Packages/Default/Add Line in Braces.sublime-macro"},
+    "context": [
+        {"key": "setting.auto_indent", "operator": "equal", "operand": true},
+        {"key": "selector", "operand": "source.dascript - comment - string", "match_all": true},
+        {"key": "selection_empty", "operator": "equal", "operand": true, "match_all": true},
+        {"key": "following_text", "operator": "regex_contains", "operand": "^(?:[)}]|\\][ \t]*\\])", "match_all": true},
+    ],
+},
+
+]

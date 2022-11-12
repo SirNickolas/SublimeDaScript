@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE plist PUBLIC
+  "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>scope</key>
+  <string>
+    (
+      meta.statement.struct.dascript,
+      meta.statement.class.dascript,
+      meta.statement.enum.dascript,
+      meta.statement.union.dascript,
+      meta.statement.bitfield.dascript,
+      meta.statement.function.dascript,
+      meta.statement.function.anonymous.dascript,
+      meta.statement.function.implicit.dascript,
+      meta.statement.variable.dascript,
+
+      meta.statement.conditional.if.dascript,
+      meta.statement.conditional.elseif.dascript,
+      meta.statement.conditional.else.dascript,
+      meta.statement.loop.for.dascript,
+      meta.statement.loop.while.dascript,
+      meta.statement.exception.try.dascript,
+      meta.statement.exception.catch.dascript,
+      meta.statement.exception.finally.dascript,
+      meta.statement.unsafe.dascript,
+      meta.statement.with.dascript
+    ) - (
+      source.dascript meta.statement comment.block.dascript,
+      source.dascript meta.statement comment.block.documentation.dascript
+    )
+  </string>
+  <!-- Comments are excluded to allow their usage for line splicing:
+
+    if a && /*
+    */ b && c
+      f()
+  -->
+
+  <key>settings</key>
+  <dict>
+    <key>increaseIndentPattern</key>
+    <string>(?#)</string>
+  </dict>
+</dict>
+</plist>

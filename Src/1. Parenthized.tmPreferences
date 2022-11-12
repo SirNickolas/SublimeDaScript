@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE plist PUBLIC
+  "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>scope</key>
+  <string>
+    meta.group.dascript,
+    meta.function.parameters.dascript,
+    meta.brackets.dascript,
+    meta.block.dascript
+  </string>
+
+  <key>settings</key>
+  <dict>
+    <key>increaseIndentPattern</key>
+    <!--
+    FIXME: This works incorrectly with strings and comments. Should be done in the syntax instead.
+    -->
+    <string><![CDATA[(?x)
+      [^\(\[\{]*+ # Prefix without brackets.
+      (?! # Need at least one unclosed bracket.
+        (?> # Balanced sequence with suffix.
+          ( # Balanced sequence (recursion entry point).
+            \(
+            (?> [^\(\[\{\)] | \g<1>)*+
+            \)
+          | \[ \[
+            (?> [^\(\[\{] | \g<1>)*?
+            \] [ \t]*+ \] # If there is only one closing bracket, will backtrack into the loop.
+          | \[ (?! \[) # A lone square bracket is a balanced sequence, indeed.
+          | \{
+            (?> [^\(\[\{\}] | \g<1>)*+
+            \}
+          )
+          [^\(\[\{]*+ # Suffix without brackets.
+        )*+ # There can be several sequences.
+        \z
+      )
+    ]]></string>
+  </dict>
+</dict>
+</plist>

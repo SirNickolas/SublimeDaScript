@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE plist PUBLIC
+  "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>scope</key>
+  <string>source.dascript - string</string>
+
+  <key>settings</key>
+  <dict>
+    <key>decreaseIndentPattern</key>
+    <string>(?x)
+      [ \t]*+ (?:
+        [\){}]
+      | \] [ \t]*+ \]
+      | (?: elif|else|recover|finally) (?! [A-Za-z0-9_`])
+      )
+    </string>
+  </dict>
+</dict>
+</plist>

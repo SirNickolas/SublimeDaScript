@@ -7,6 +7,7 @@ scope: source.dascript
 # https://dascript.org/doc/reference/language/lexical_structure.html
 # TODO: Use `meta.*` for everything.
 # TODO: Annotations vs. type constructors at BOL.
+# TODO: Do not increase indentation after abstract method definitions.
 
 variables:
   identifier_first_char: A-Za-z_
@@ -114,6 +115,10 @@ contexts:
 
   pop-on-non-whitespace-multiline:
   - match: (?=[^ \t\n])
+    pop: true
+
+  -pop-on-unpaired:
+  - match: (?=[\)\]\}])
     pop: true
 
   -pop-on-unexpected:
@@ -439,17 +444,18 @@ contexts:
     scope: punctuation.section.brackets.begin.dascript
     push: brackets-contents
   - match: '{{left_angle_bracket}}'
-    scope: punctuation.definition.generic.begin.dascript
+    scope: meta.generic.dascript punctuation.definition.generic.begin.dascript
     push: [generic-arguments, namespace]
   - include: -pop-on-non-whitespace
 
   angle-brackets-with-names:
   - match: '{{left_angle_bracket}}'
-    scope: punctuation.definition.generic.begin.dascript
+    scope: meta.generic.dascript punctuation.definition.generic.begin.dascript
     set: generic-named-arguments
   - include: -pop-on-non-whitespace
 
   generic-arguments:
+  - meta_content_scope: meta.generic.dascript
   # We've already stripped the namespace, don't have to worry about `::` here.
   - match: ({{identifier}})[ \t]*(:)(?!=)
     captures:
@@ -468,14 +474,14 @@ contexts:
 
   -generic-arguments-end:
   - match: '>(?!=)' # Lexer is able to split `>>` and `>>>` but not `>=`, `>>=`, or `>>>=`.
-    scope: punctuation.definition.generic.end.dascript
+    scope: meta.generic.dascript punctuation.definition.generic.end.dascript
     pop: true
   # Silently pop in case we entered the generic by mistake.
-  - match: (?=[\)\]\}])
-    pop: true
+  - include: -pop-on-unpaired
 
   # E.g., `table<string; int>` or `block<(x: int): bool>`.
   generic-unnamed-arguments-tail:
+  - meta_content_scope: meta.generic.dascript
   - include: -generic-arguments-end
   - match: ;
     scope: punctuation.separator.sequence.dascript
@@ -490,6 +496,7 @@ contexts:
   # E.g., `variant<i: int; s: string>`. Once we see a named argument, we expect all subsequent
   # arguments to have a name, too. Though `tuple<i: int; float>` is perfectly valid.
   generic-named-arguments:
+  - meta_content_scope: meta.generic.dascript
   - include: -generic-arguments-end
   - include: -colon-and-type
   - match: ;
@@ -516,7 +523,7 @@ contexts:
   - include: pop-on-non-whitespace-multiline
 
   callable-parameters:
-  - meta_scope: meta.parameters.dascript
+  - meta_scope: meta.function.parameters.dascript
   - match: \)
     scope: punctuation.section.group.end.dascript
     pop: true
@@ -542,6 +549,47 @@ contexts:
       - include: type-postfix
     - type
     - namespace
+  - include: -pop-on-non-whitespace
+
+  #
+  # Meta.
+  #
+  -braced-block:
+  - match: \{
+    scope: punctuation.section.block.begin.dascript
+    set: braces-contents
+
+  -capture-newline:
+  - match: $\n?
+    pop: true
+
+  -line:
+  - include: -capture-newline
+  - include: -pop-on-unpaired
+  - include: -everything
+
+  -optionally-braced-block:
+  - include: -braced-block
+  - match: ;
+    scope: punctuation.terminator.dascript
+    pop: true
+  - include: -line
+
+  meta-variant:
+  - meta_scope: meta.statement.union.dascript
+  - include: -optionally-braced-block
+
+  meta-bitfield:
+  - meta_scope: meta.statement.bitfield.dascript
+  - include: -optionally-braced-block
+
+  meta-function:
+  - meta_scope: meta.statement.function.dascript
+  - include: -optionally-braced-block
+
+  meta-implicit-function:
+  - meta_scope: meta.statement.function.implicit.dascript
+  - include: -capture-newline
   - include: -pop-on-non-whitespace
 
   #
@@ -573,6 +621,7 @@ contexts:
     captures:
       1: variable.function.dascript
       2: punctuation.separator.argument.dascript
+    push: meta-implicit-function
   # If an identifier does not contain lowercase letters and contains at least 2 uppercase ones,
   # we assume it is an all-caps constant.
   - match: (?:_[0-9_`]*)?[A-Z][0-9_`]*[A-Z][A-Z0-9_`]*{{b}}
@@ -651,7 +700,7 @@ contexts:
   -def-stmt:
   - match: def{{b}}
     scope: storage.type.function.dascript keyword.declaration.function.dascript
-    push: [function-body, callable-return-type, function-parameters, function-name]
+    push: [function-body, meta-function, callable-return-type, function-parameters, function-name]
 
   function-name:
   - match: operator{{b}}
@@ -694,9 +743,9 @@ contexts:
       set: function-body
     - match: (?=.)
       pop: true
-  - match: def{{b}} # Successive class methods should reuse this stack frame and not put new ones.
+  - match: def{{b}} # Subsequent class methods should reuse this stack frame and not push new ones.
     scope: storage.type.function.dascript keyword.declaration.function.dascript
-    push: [callable-return-type, function-parameters, function-name]
+    push: [meta-function, callable-return-type, function-parameters, function-name]
   - include: -everything
 
   -unrecognized-identifiers:
@@ -708,21 +757,25 @@ contexts:
   - match: struct{{b}}
     scope: storage.type.struct.dascript keyword.declaration.struct.dascript
     push:
-    - include: -lenient-declaration-modifiers
-    - match: '{{identifier}}'
-      scope: entity.name.struct.dascript
-      set: class-inheritance
-    - include: -pop-on-non-whitespace
+    - - meta_scope: meta.statement.struct.dascript
+      - include: -optionally-braced-block
+    - - include: -lenient-declaration-modifiers
+      - match: '{{identifier}}'
+        scope: entity.name.struct.dascript
+        set: class-inheritance
+      - include: -pop-on-non-whitespace
 
   -class-stmt:
   - match: class{{b}}
     scope: storage.type.class.dascript keyword.declaration.class.dascript
     push:
-    - include: -lenient-declaration-modifiers
-    - match: '{{identifier}}'
-      scope: entity.name.class.dascript
-      set: class-inheritance
-    - include: -pop-on-non-whitespace
+    - - meta_scope: meta.statement.class.dascript
+      - include: -optionally-braced-block
+    - - include: -lenient-declaration-modifiers
+      - match: '{{identifier}}'
+        scope: entity.name.class.dascript
+        set: class-inheritance
+      - include: -pop-on-non-whitespace
 
   class-inheritance:
   - match: '{{colon}}'
@@ -756,24 +809,26 @@ contexts:
   - match: enum{{b}}
     scope: storage.type.enum.dascript keyword.declaration.enum.dascript
     push:
-    - include: -lenient-declaration-modifiers
-    - match: '{{identifier}}'
-      scope: entity.name.enum.dascript
-      set:
-      - match: '{{colon}}'
-        scope: punctuation.separator.inheritance.dascript
+    - - meta_scope: meta.statement.enum.dascript
+      - include: -optionally-braced-block
+    - - include: -lenient-declaration-modifiers
+      - match: '{{identifier}}'
+        scope: entity.name.enum.dascript
         set:
-        - match: u?int(?:8|16)?{{b}}
-          scope: storage.type.dascript
-          pop: true
-        - match: '{{identifier}}'
-          scope: variable.other.dascript
-          pop: true
+        - match: '{{colon}}'
+          scope: punctuation.separator.inheritance.dascript
+          set:
+          - match: u?int(?:8|16)?{{b}}
+            scope: storage.type.dascript
+            pop: true
+          - match: '{{identifier}}'
+            scope: variable.other.dascript
+            pop: true
+          - include: -pop-on-non-whitespace
+        # Enum's base type will get `storage.type` scope regardless of whether we accept
+        # unrecognized identifiers here or not. So why do extra work?
         - include: -pop-on-non-whitespace
-      # Enum's base type will get `storage.type` scope regardless of whether we accept unrecognized
-      # identifiers here or not. So why do extra work?
       - include: -pop-on-non-whitespace
-    - include: -pop-on-non-whitespace
 
   -typedef-stmt:
   - match: typedef{{b}}
@@ -825,13 +880,14 @@ contexts:
     captures:
       1: storage.type.union.dascript keyword.declaration.union.dascript
       2: entity.name.union.dascript
+    push: meta-variant
   - match: variant{{b}}
     scope: storage.type.dascript
     push:
     - include: -pop-on-unexpected
     - match: '{{identifier}}'
       scope: entity.name.union.dascript
-      pop: true
+      set: meta-variant
     - include: angle-brackets-with-names
 
   -bitfield-stmt:
@@ -839,42 +895,61 @@ contexts:
     captures:
       1: storage.type.bitfield.dascript keyword.declaration.bitfield.dascript
       2: entity.name.bitfield.dascript
+    push: meta-bitfield
   - match: bitfield{{b}}
     scope: storage.type.dascript
     push:
     - include: -pop-on-unexpected
     - match: '{{identifier}}'
       scope: entity.name.bitfield.dascript
-      pop: true
+      set: meta-bitfield
     - include: angle-brackets-with-names
 
   -var-stmt:
   - match: (?:assume|let|var){{b}}
     scope: storage.type.variable.dascript keyword.declaration.variable.dascript
     push:
+    - meta_scope: meta.statement.variable.dascript
     - include: -declaration-modifiers
     - match: \[\[
       scope: punctuation.section.brackets.begin.dascript
       set: [brackets-contents, brackets-contents, simple-annotation, annotation-identifier]
+    - include: -capture-newline
+    - include: -braced-block
     - include: -pop-on-non-whitespace
 
   -conditional-stmts:
   - match: (?:static_)?if{{b}}
     scope: keyword.control.conditional.if.dascript
+    push:
+    - meta_scope: meta.statement.conditional.if.dascript
+    - include: -optionally-braced-block
   - match: (?:static_)?elif{{b}}
     scope: keyword.control.conditional.elseif.dascript
+    push:
+    - meta_scope: meta.statement.conditional.elseif.dascript
+    - include: -optionally-braced-block
   - match: else{{b}}
     scope: keyword.control.conditional.else.dascript
+    push:
+    - meta_scope: meta.statement.conditional.else.dascript
+    - include: -optionally-braced-block
   - match: where{{b}}
     scope: keyword.control.conditional.where.dascript
 
   -loop-stmts:
   - match: for{{b}}
     scope: keyword.control.loop.for.dascript
+    push:
+    - meta_scope: meta.statement.loop.for.dascript
+    - include: -optionally-braced-block
   - match: in{{b}}
     scope: keyword.control.loop.for.in.dascript
   - match: while{{b}}
     scope: keyword.control.loop.while.dascript
+    push:
+    - meta_scope: meta.statement.loop.while.dascript
+    - include: -optionally-braced-block
   - match: break{{b}}
     scope: keyword.control.flow.break.dascript
   - match: continue{{b}}
@@ -883,10 +958,19 @@ contexts:
   -exception-stmts:
   - match: try{{b}}
     scope: keyword.control.exception.try.dascript
+    push:
+    - meta_scope: meta.statement.exception.try.dascript
+    - include: -optionally-braced-block
   - match: recover{{b}}
     scope: keyword.control.exception.catch.dascript
+    push:
+    - meta_scope: meta.statement.exception.catch.dascript
+    - include: -optionally-braced-block
   - match: finally{{b}}
     scope: keyword.control.exception.finally.dascript
+    push:
+    - meta_scope: meta.statement.exception.finally.dascript
+    - include: -optionally-braced-block
 
   -label-stmts:
   - match: label{{b}}
@@ -930,7 +1014,7 @@ contexts:
 
   angle-brackets:
   - match: '{{left_angle_bracket}}'
-    scope: punctuation.definition.generic.begin.dascript
+    scope: meta.generic.dascript punctuation.definition.generic.begin.dascript
     set: [generic-arguments, namespace]
   - include: -pop-on-non-whitespace
 
@@ -947,7 +1031,7 @@ contexts:
           pop: true
         - include: -everything
       - - match: '{{identifier}}'
-          scope: constant.other.typeinfo.dascript
+          scope: support.function.typeinfo.dascript
           set: angle-brackets-with-names
         - include: -pop-on-non-whitespace
     - include: -pop-on-non-whitespace
@@ -959,12 +1043,20 @@ contexts:
     scope: keyword.control.exception.assert.dascript
   - match: unsafe{{b}}
     scope: keyword.control.dascript
+    push:
+    - meta_scope: meta.statement.unsafe.dascript
+    - match: \(
+      set: parens-contents
+    - include: -optionally-braced-block
   - match: return{{b}}
     scope: keyword.control.flow.return.dascript
   - match: yield{{b}}
     scope: keyword.control.flow.yield.dascript
   - match: with{{b}}
     scope: keyword.control.flow.with.dascript
+    push:
+    - meta_scope: meta.statement.with.dascript
+    - include: -optionally-braced-block
   - match: delete{{b}}
     scope: keyword.control.dascript
   - match: pass{{b}}
@@ -1011,6 +1103,7 @@ contexts:
   -punctuation:
   - match: <\|
     scope: punctuation.separator.argument.dascript
+    push: meta-implicit-function
   - match: \|>
     scope: punctuation.separator.argument.dascript
     push: [function-reference, namespace]
@@ -1045,9 +1138,10 @@ contexts:
     - match: '{{colon}}'
       scope: keyword.operator.comparison.dascript
       pop: true
-    - match: (?=[\)\]\}]|as{{b}}) # `?/**/as` - not a ternary conditional operator.
-      pop: true
+    - include: -pop-on-unpaired
     - include: -pop-on-unexpected
+    - match: (?=as{{b}}) # `?/**/as` - not a ternary conditional operator.
+      pop: true
     - include: -everything
   - match: '[-+*/]'
     scope: keyword.operator.arithmetic.dascript
@@ -1100,7 +1194,7 @@ contexts:
     - include: -anonymous-function
     # @@<(x: int): int> overloaded_func
     - match: '{{left_angle_bracket}}'
-      scope: punctuation.definition.generic.begin.dascript
+      scope: meta.generic.dascript punctuation.definition.generic.begin.dascript
       set: [function-reference, namespace, generic-arguments, namespace]
     - include: function-reference
   - match: '[$@]'
@@ -1117,10 +1211,11 @@ contexts:
   - match: \(
     scope: punctuation.section.group.begin.dascript
     set:
-    - - match: =>
+    - - meta_scope: meta.statement.function.anonymous.dascript
+      - match: =>
         scope: storage.type.function.dascript keyword.declaration.function.dascript
         pop: true
-      - include: pop-on-non-whitespace-multiline
+      - include: -optionally-braced-block
     - callable-return-type
     - callable-parameters
     - callable-parameter-name
