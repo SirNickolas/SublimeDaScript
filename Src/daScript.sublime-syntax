@@ -912,7 +912,7 @@ contexts:
     - include: angle-brackets-with-names
 
   -var-stmt:
-  - match: (?:assume|let|var){{b}}
+  - match: (?:let|var){{b}}
     scope: storage.type.variable.dascript keyword.declaration.variable.dascript
     push:
     - meta_scope: meta.statement.variable.dascript
@@ -1043,17 +1043,6 @@ contexts:
     - include: -pop-on-non-whitespace
 
   -misc-keywords:
-  - match: options{{b}}
-    scope: keyword.control.directive.dascript
-  - match: expect{{b}}
-    scope: keyword.control.exception.assert.dascript
-  - match: unsafe{{b}}
-    scope: keyword.control.dascript
-    push:
-    - meta_scope: meta.statement.unsafe.dascript
-    - match: \(
-      set: parens-contents
-    - include: -optionally-braced-block
   - match: return{{b}}
     scope: keyword.control.flow.return.dascript
   - match: yield{{b}}
@@ -1063,10 +1052,23 @@ contexts:
     push:
     - meta_scope: meta.statement.with.dascript
     - include: -optionally-braced-block
+  - match: unsafe{{b}}
+    scope: keyword.control.dascript
+    push:
+    - meta_scope: meta.statement.unsafe.dascript
+    - match: \(
+      set: parens-contents
+    - include: -optionally-braced-block
+  - match: options{{b}}
+    scope: keyword.control.directive.dascript
   - match: delete{{b}}
     scope: keyword.control.dascript
   - match: pass{{b}}
     scope: keyword.control.flow.pass.dascript
+  - match: expect{{b}}
+    scope: keyword.control.exception.assert.dascript
+  - match: assume{{b}}
+    scope: storage.type.variable.dascript keyword.declaration.variable.dascript
   - match: |-
       (?x:
         (?: (\?) [ \t]*)? (as)
