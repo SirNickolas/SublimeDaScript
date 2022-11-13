@@ -5,7 +5,6 @@ file_extensions: [das]
 scope: source.dascript
 
 # https://dascript.org/doc/reference/language/lexical_structure.html
-# TODO: Annotations vs. type constructors at BOL.
 # TODO: Do not increase indentation after abstract method definitions.
 
 variables:
@@ -72,29 +71,29 @@ contexts:
   #
   main:
   - match: '[ \t]+'
-    set:
-    - include: -simple-annotations
-    - include: -rich-annotations
-    - match: (?![ \t])
-      set:
-      # - include: -indented-def-stmt
-      - include: main-without-annotations
-  - match: (?=\[)
-    set: annotations-at-bol
+    set: [indented-main, annotations]
   - match: (?=.)
-    set: main-without-annotations
+    set: [unindented-main, annotations]
 
-  annotations-at-bol:
+  annotations:
   - include: -simple-annotations
   - include: -rich-annotations
-  - match: (?![ \t])
-    set: main-without-annotations
+  - include: -pop-on-non-whitespace
 
-  main-without-annotations:
+  indented-main:
+  - meta_include_prototype: false
   - match: $
     set: main
-  - match: ^(?=\[(?!\{))
-    set: annotations-at-bol
+  - include: unindented-main
+
+  unindented-main:
+  - meta_content_scope: meta.declaration.top-level.dascript
+  - meta_include_prototype: false
+  - match: ^[ \t]+ # Inlined from `main`.
+    set: [indented-main, annotations]
+  - match: ^(?=\[(?!\{)|/\*)
+    set: main # It will skip the block comment and check if there is whitespace beyond.
+  - include: prototype
   - include: -everything
 
   -everything:
@@ -747,9 +746,14 @@ contexts:
   function-body:
   - match: $
     set:
-    - match: '[ \t]+'
+    - match: |-
+        (?x)
+        [ \t]+ (?=
+          [^ \t\[] # A regular line of code inside the function, possibly blank.
+        | \[ [\[\{\]] # A type constructor, comprehension, or we don't know yet what it will become.
+        )
       set: function-body
-    - match: (?=.)
+    - match: (?=.) # Something at BOL - the function ends here.
       pop: true
   - match: def{{b}} # Subsequent class methods should reuse this stack frame and not push new ones.
     scope: storage.type.function.dascript keyword.declaration.function.dascript
