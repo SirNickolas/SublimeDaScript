@@ -5,6 +5,7 @@ file_extensions: [das]
 scope: source.dascript
 
 # https://dascript.org/doc/reference/language/lexical_structure.html
+# TODO: Annotations vs. type constructors at BOL.
 # TODO: Do not increase indentation after abstract method definitions.
 
 variables:
@@ -20,12 +21,6 @@ variables:
   minus: -(?![-=>])
   left_bracket: \[(?![\[\{])
   left_angle_bracket: <(?![-<=|])
-  overloadable_operator: >-
-    (?x:
-      :=
-    | (?: [ai]s | delete) {{b}}
-    | (?! [-+*/%|^&~<>!=?.\[\] \t])
-    )
   # If we process something from this list incorrectly, chances are good that we will mess up
   # a large part of the file.
   # More complete list (as an optimization, not checked):
@@ -77,19 +72,17 @@ contexts:
   #
   main:
   - match: '[ \t]+'
-    set: indented-main
+    set:
+    - include: -simple-annotations
+    - include: -rich-annotations
+    - match: (?![ \t])
+      set:
+      # - include: -indented-def-stmt
+      - include: main-without-annotations
   - match: (?=\[)
     set: annotations-at-bol
   - match: (?=.)
     set: main-without-annotations
-
-  indented-main:
-  - include: -simple-annotations
-  - include: -rich-annotations
-  - match: (?![ \t])
-    set:
-    - include: -indented-def-stmt
-    - include: main-without-annotations
 
   annotations-at-bol:
   - include: -simple-annotations
@@ -593,10 +586,6 @@ contexts:
   - meta_scope: meta.statement.function.dascript
   - include: -optionally-braced-block
 
-  meta-method:
-  - meta_scope: meta.statement.function.member.dascript
-  - include: -optionally-braced-block
-
   meta-implicit-function:
   - meta_scope: meta.statement.function.implicit.dascript
   - include: -capture-newline
@@ -712,16 +701,15 @@ contexts:
     scope: storage.type.function.dascript keyword.declaration.function.dascript
     push: [function-body, meta-function, callable-return-type, function-parameters, function-name]
 
-  -indented-def-stmt:
-  - match: def{{b}}
-    scope: storage.type.function.dascript keyword.declaration.function.dascript
-    push: [method-body, meta-method, callable-return-type, method-parameters, method-name]
-
   function-name:
   - match: operator{{b}}
     set:
     - meta_scope: entity.name.function.dascript
-    - match: '{{overloadable_operator}}'
+    - match: |-
+        (?x)
+          :=
+        | (?: [ai]s | delete) {{b}}
+        | (?! [-+*/%|^&~<>!=?.\[\] \t])
       set: function-name-postfix
   - match: \+\+|-- # Prefix increment or decrement.
     set:
@@ -735,41 +723,13 @@ contexts:
     set: function-name-postfix
   - include: -expect-function-name-postfix
 
-  method-name:
-  - match: operator{{b}}
-    set:
-    - meta_scope: entity.name.function.member.dascript
-    - match: '{{overloadable_operator}}'
-      set: method-name-postfix
-  - match: \+\+|-- # Prefix increment or decrement.
-    set:
-    - meta_scope: entity.name.function.member.dascript
-    - match: operator{{b}}
-      set: method-name-postfix
-    - include: -expect-method-name-postfix
-  - include: -lenient-declaration-modifiers
-  - match: '{{identifier}}'
-    scope: entity.name.function.member.dascript
-    set: method-name-postfix
-  - include: -expect-method-name-postfix
-
   -expect-function-name-postfix:
   - match: (?![ \t])
     set: function-name-postfix
 
-  -expect-method-name-postfix:
-  - match: (?![ \t])
-    set: method-name-postfix
-
   function-name-postfix:
   - clear_scopes: 1
   - meta_content_scope: meta.function.name-postfix.dascript
-  - include: -unrecognized-identifiers
-  - include: -pop-on-non-whitespace
-
-  method-name-postfix:
-  - clear_scopes: 1
-  - meta_content_scope: meta.function.name-postfix.member.dascript
   - include: -unrecognized-identifiers
   - include: -pop-on-non-whitespace
 
@@ -784,17 +744,6 @@ contexts:
     - callable-parameter-name
   - include: -pop-on-non-whitespace
 
-  method-parameters:
-  - meta_scope: meta.function.member.dascript
-  - match: \(
-    scope: punctuation.section.group.begin.dascript
-    push:
-    - - clear_scopes: 1
-      - meta_scope: meta.function.parameters.member.dascript
-      - include: callable-parameters
-    - callable-parameter-name
-  - include: -pop-on-non-whitespace
-
   function-body:
   - match: $
     set:
@@ -802,31 +751,9 @@ contexts:
       set: function-body
     - match: (?=.)
       pop: true
-  - include: -everything
-
-  method-body:
-  # BUG: Does not work with braced syntax.
-  # BUG: Does not work with abstract methods.
-  - match: ^([ \t]+)(?=[^ \t\n])(?!//)
-    set:
-    - - match: ^
-        set: main
-      - match: ''
-        set: indented-main
-    - - match: ^(?!\1)[ \t]*(?=[^ \t\n])(?!//)
-    # - - match: ^[ \t]*(?=[^ \t\n])(?<!\1)(?!//) # About 1% slower.
-        pop: true
-      - match: '[ \t]+'
-      - include: -everything
-  # - match: $
-  #   set:
-  #   - match: '[ \t]+'
-  #     set: method-body
-  #   - match: (?=.)
-  #     pop: true
   - match: def{{b}} # Subsequent class methods should reuse this stack frame and not push new ones.
     scope: storage.type.function.dascript keyword.declaration.function.dascript
-    push: [meta-method, callable-return-type, method-parameters, method-name]
+    push: [meta-function, callable-return-type, function-parameters, function-name]
   - include: -everything
 
   -unrecognized-identifiers:
