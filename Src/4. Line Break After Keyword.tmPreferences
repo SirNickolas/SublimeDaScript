@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE plist PUBLIC
+  "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>scope</key>
+  <string>meta.line-break.after-keyword.dascript</string>
+
+  <key>settings</key>
+  <dict>
+    <key>cancelCompletion</key>
+    <string>(?#)</string>
+  </dict>
+</dict>
+</plist>

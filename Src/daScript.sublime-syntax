@@ -27,7 +27,8 @@ variables:
   # | struct | try | typedef | var | while | yield
   # )
   critical_keyword: class|def|enum|for|goto|include|label|let|module|require|struct|typedef|var
-  language_constant: (?:true|false|null){{b}}
+  declaration_modifier: abstract|override|private|public|sealed|shared
+  language_constant: true|false|null
   basic_type: bool|double|float[234]?|string|u?int(?:[2348]|16|64)?|u?range|void
   generic_type: array|block|function|iterator|lambda|smart_ptr|table|tuple
 
@@ -388,23 +389,36 @@ contexts:
   - include: -pop-on-non-whitespace
 
   type:
-  - match: (?:{{basic_type}}|{{generic_type}}){{b}}
-    scope: storage.type.dascript
+  - match: ({{basic_type}}|{{generic_type}})(\n|{{b}})
+    captures:
+      1: storage.type.dascript
+      2: meta.line-break.after-keyword.dascript
     pop: true
-  - match: auto{{b}}
-    scope: storage.type.dascript
+  - match: (auto)(\n|{{b}})
+    captures:
+      1: storage.type.dascript
+      2: meta.line-break.after-keyword.dascript
     set:
     - match: \(
       scope: punctuation.section.group.begin.dascript
       set: [parens-contents, auto-contents]
     - include: -pop-on-non-whitespace
-  - match: (?:variant|bitfield){{b}}
-    scope: storage.type.dascript
+  - match: (das_string)(\n)
+    captures:
+      1: support.type.dascript
+      2: meta.line-break.after-keyword.dascript
+    pop: true
+  - match: (variant|bitfield)(\n|{{b}})
+    captures:
+      1: storage.type.dascript
+      2: meta.line-break.after-keyword.dascript
     set: angle-brackets-with-names
   # `true/false/null` in type position - we won't see it in valid daScript, but this allows for
   # better integration with custom syntaxes (e.g., JSON).
-  - match: '{{language_constant}}'
-    scope: constant.language.dascript
+  - match: ({{language_constant}})(\n|{{b}})
+    captures:
+      1: constant.language.dascript
+      2: meta.line-break.after-keyword.dascript
     pop: true
   - include: -pop-on-unexpected
   - match: '{{identifier}}'
@@ -426,10 +440,11 @@ contexts:
   - include: pop-on-non-whitespace-multiline
 
   type-postfix:
-  - match: (?:(=)[ \t]*)?(const|(?:ex|im)plicit){{b}}
+  - match: (?:(=)[ \t]*)?(const|(?:ex|im)plicit)(\n|{{b}})
     captures:
       1: storage.modifier.dascript
       2: storage.modifier.dascript
+      3: meta.line-break.after-keyword.dascript
   - match: '[&?#]+|{{minus}}'
     scope: storage.modifier.dascript
   - match: '{{left_bracket}}'
@@ -602,10 +617,11 @@ contexts:
   - include: -conditional-stmts
   - include: -loop-stmts
   - include: -exception-stmts
+  - include: -declaration-modifiers # require ... public
+  - include: -misc-keywords
   - include: -label-stmts
   - include: -generic-value-exprs
   - include: -typeinfo-expr
-  - include: -misc-keywords
   # Function calls.
   - match: |-
       (?x)
@@ -633,11 +649,14 @@ contexts:
 
   -declaration-modifiers:
   # We allow all of these for every construct that needs some. They are reserved keywords anyway.
-  - match: (?:abstract|override|private|public|sealed|shared){{b}}
-    scope: storage.modifier.dascript
+  - match: ({{declaration_modifier}})(\n|{{b}})
+    captures:
+      1: storage.modifier.dascript
+      2: meta.line-break.after-keyword.dascript
 
   -lenient-declaration-modifiers:
-  - include: -declaration-modifiers
+  - match: (?:{{declaration_modifier}}){{b}}
+    scope: storage.modifier.dascript
   # Unrecognized modifiers.
   - match: ({{identifier}})[ \t]+(?=[{{identifier_first_char}}])
     captures:
@@ -650,7 +669,7 @@ contexts:
     - - meta_scope: meta.namespace.dascript
       - include: -declaration-modifiers
       - include: -pop-on-non-whitespace
-    - - match: '{{identifier}}'
+    - - match: '{{identifier}}|\$'
         scope: entity.name.namespace.dascript
         pop: true
       - include: -pop-on-non-whitespace
@@ -824,8 +843,10 @@ contexts:
         - match: '{{colon}}'
           scope: punctuation.separator.inheritance.dascript
           set:
-          - match: u?int(?:8|16)?{{b}}
-            scope: storage.type.dascript
+          - match: (u?int(?:8|16)?)(\n|{{b}})
+            captures:
+              1: storage.type.dascript
+              2: meta.line-break.after-keyword.dascript
             pop: true
           - match: '{{identifier}}'
             scope: variable.other.dascript
@@ -837,8 +858,10 @@ contexts:
       - include: -pop-on-non-whitespace
 
   -typedef-stmt:
-  - match: typedef{{b}}
-    scope: storage.type.type.dascript keyword.declaration.type.dascript
+  - match: (typedef)(\n|{{b}})
+    captures:
+      1: storage.type.type.dascript keyword.declaration.type.dascript
+      2: meta.line-break.after-keyword.dascript
     push: typedef-entry
 
   typedef-entry:
@@ -859,7 +882,7 @@ contexts:
     set: typedef-entry-postfix
 
   typedef-entry-postfix:
-  - match: \n
+  - match: $
     set:
     - match: '[ \t]+'
       set: typedef-entry
@@ -912,8 +935,10 @@ contexts:
     - include: angle-brackets-with-names
 
   -var-stmt:
-  - match: (?:let|var){{b}}
-    scope: storage.type.variable.dascript keyword.declaration.variable.dascript
+  - match: (let|var)(\n|{{b}})
+    captures:
+      1: storage.type.variable.dascript keyword.declaration.variable.dascript
+      2: meta.line-break.after-keyword.dascript
     push:
     - meta_scope: meta.statement.variable.dascript
     - include: -declaration-modifiers
@@ -935,13 +960,17 @@ contexts:
     push:
     - meta_scope: meta.statement.conditional.elseif.dascript
     - include: -optionally-braced-block
-  - match: else{{b}}
-    scope: keyword.control.conditional.else.dascript
+  - match: (else)(\n|{{b}})
+    captures:
+      1: keyword.control.conditional.else.dascript
+      2: meta.line-break.after-keyword.dascript
     push:
     - meta_scope: meta.statement.conditional.else.dascript
     - include: -optionally-braced-block
-  - match: where{{b}}
-    scope: keyword.control.conditional.where.dascript
+  - match: (where)(\n|{{b}})
+    captures:
+      1: keyword.control.conditional.where.dascript
+      2: meta.line-break.after-keyword.dascript
 
   -loop-stmts:
   - match: for{{b}}
@@ -956,24 +985,34 @@ contexts:
     push:
     - meta_scope: meta.statement.loop.while.dascript
     - include: -optionally-braced-block
-  - match: break{{b}}
-    scope: keyword.control.flow.break.dascript
-  - match: continue{{b}}
-    scope: keyword.control.flow.continue.dascript
+  - match: (break)(\n|{{b}})
+    captures:
+      1: keyword.control.flow.break.dascript
+      2: meta.line-break.after-keyword.dascript
+  - match: (continue)(\n|{{b}})
+    captures:
+      1: keyword.control.flow.continue.dascript
+      2: meta.line-break.after-keyword.dascript
 
   -exception-stmts:
-  - match: try{{b}}
-    scope: keyword.control.exception.try.dascript
+  - match: (try)(\n|{{b}})
+    captures:
+      1: keyword.control.exception.try.dascript
+      2: meta.line-break.after-keyword.dascript
     push:
     - meta_scope: meta.statement.exception.try.dascript
     - include: -optionally-braced-block
-  - match: recover{{b}}
-    scope: keyword.control.exception.catch.dascript
+  - match: (recover)(\n|{{b}})
+    captures:
+      1: keyword.control.exception.catch.dascript
+      2: meta.line-break.after-keyword.dascript
     push:
     - meta_scope: meta.statement.exception.catch.dascript
     - include: -optionally-braced-block
-  - match: finally{{b}}
-    scope: keyword.control.exception.finally.dascript
+  - match: (finally)(\n|{{b}})
+    captures:
+      1: keyword.control.exception.finally.dascript
+      2: meta.line-break.after-keyword.dascript
     push:
     - meta_scope: meta.statement.exception.finally.dascript
     - include: -optionally-braced-block
@@ -1043,17 +1082,23 @@ contexts:
     - include: -pop-on-non-whitespace
 
   -misc-keywords:
-  - match: return{{b}}
-    scope: keyword.control.flow.return.dascript
-  - match: yield{{b}}
-    scope: keyword.control.flow.yield.dascript
+  - match: (return)(\n|{{b}})
+    captures:
+      1: keyword.control.flow.return.dascript
+      2: meta.line-break.after-keyword.dascript
+  - match: (yield)(\n|{{b}})
+    captures:
+      1: keyword.control.flow.yield.dascript
+      2: meta.line-break.after-keyword.dascript
   - match: with{{b}}
     scope: keyword.control.flow.with.dascript
     push:
     - meta_scope: meta.statement.with.dascript
     - include: -optionally-braced-block
-  - match: unsafe{{b}}
-    scope: keyword.control.dascript
+  - match: (unsafe)(\n|{{b}})
+    captures:
+      1: keyword.control.dascript
+      2: meta.line-break.after-keyword.dascript
     push:
     - meta_scope: meta.statement.unsafe.dascript
     - match: \(
@@ -1063,8 +1108,10 @@ contexts:
     scope: keyword.control.directive.dascript
   - match: delete{{b}}
     scope: keyword.control.dascript
-  - match: pass{{b}}
-    scope: keyword.control.flow.pass.dascript
+  - match: (pass)(\n|{{b}})
+    captures:
+      1: keyword.control.flow.pass.dascript
+      2: meta.line-break.after-keyword.dascript
   - match: expect{{b}}
     scope: keyword.control.exception.assert.dascript
   - match: assume{{b}}
@@ -1089,16 +1136,24 @@ contexts:
     push: [type-postfix, type, namespace]
   - match: (?:addr|deref){{b}}
     scope: keyword.operator.word.dascript
-  - match: '{{language_constant}}'
-    scope: constant.language.dascript
-  - match: (?:self|this|_+){{b}}
+  - match: ({{language_constant}})(\n|{{b}})
+    captures:
+      1: constant.language.dascript
+      2: meta.line-break.after-keyword.dascript
+  - match: (self|this)(\n|{{b}})
+    captures:
+      1: variable.language.dascript
+      2: meta.line-break.after-keyword.dascript
+  - match: _+{{b}}
     scope: variable.language.dascript
-  - match: print_flags_debugger{{b}}
-    scope: support.constant.dascript
+  - match: (print_flags_debugger)(\n|{{b}})
+    captures:
+      1: support.constant.dascript
+      2: meta.line-break.after-keyword.dascript
   # Keywords below are matched by other parts of our code when they are encountered at their
   # appropriate position. We list them here as well to be sure they are highlighted even when they
   # do not make sense.
-  - match: (?:abstract|aka|const|(?:ex|im)plicit|override|private|public|sealed|shared){{b}}
+  - match: (?:aka|const|(?:ex|im)plicit){{b}}
     scope: storage.modifier.dascript
   - match: operator{{b}}
     scope: keyword.other.dascript
