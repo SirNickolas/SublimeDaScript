@@ -5,15 +5,17 @@
 <dict>
   <key>scope</key>
   <string>
-    meta.declaration.top-level.dascript entity.name.function.dascript,
-    meta.declaration.top-level.dascript meta.function.name-postfix.dascript,
-    meta.declaration.top-level.dascript
-      meta.statement.function.dascript meta.function.parameters.dascript
+    entity.name.function.dascript,
+    meta.function.name-postfix.dascript,
+    meta.statement.function.dascript meta.function.parameters.dascript
   </string>
   <!-- We restrict to `meta.statement.function.dascript` to avoid anonymous functions. -->
 
   <key>settings</key>
   <dict>
+    <key>showInSymbolList</key>
+    <integer>1</integer>
+
     <key>symbolTransformation</key>
     <string>
       s/\/\*.*?\*\// /g; # Turn comments into spaces.
@@ -21,6 +23,7 @@
       s/[ \t\n]+/ /g; # Compact whitespace.
       s/[^\)]\K$/\(\)/; # Add empty parentheses unless present, to distinguish functions from types.
       s/ ?\( ?/\(/; # Trim spaces around parenthesis.
+      s//    /; # Indent.
     </string>
   </dict>
 </dict>
