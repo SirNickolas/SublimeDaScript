@@ -12,8 +12,6 @@ variables:
   identifier_char: A-Za-z0-9_`
   identifier: '[{{identifier_first_char}}][{{identifier_char}}]*'
   b: (?![{{identifier_char}}])
-  char_escape: '[bfnrt\\]'
-  string_escape: '[bfnrtv"/{}\\]'
   macro_escape: \$(?:[a-z]{{b}}|\$)
   colon: :(?![:=])
   equal: =(?![=>])
@@ -236,14 +234,12 @@ contexts:
     push:
     - meta_scope: string.quoted.single.dascript
     - meta_include_prototype: false
-    - match: \\{{char_escape}}
-      scope: constant.character.escape.dascript
     - match: \\?(')
       captures:
         1: punctuation.definition.string.end.dascript
       pop: true
     - match: \\.?
-      scope: comment.block.dascript
+      scope: constant.character.escape.dascript
 
   -string-literals:
   - match: '"'
@@ -251,10 +247,8 @@ contexts:
     push:
     - meta_scope: meta.string.dascript string.quoted.double.dascript
     - meta_include_prototype: false
-    - match: \\(?:{{string_escape}}|x\h\h|u\h\h\h\h)
+    - match: \\(?:x\h\h|u\h\h\h\h|.?)
       scope: constant.character.escape.dascript
-    - match: \\.?
-      scope: comment.block.dascript
     - match: \{
       scope: punctuation.section.interpolation.begin.dascript
       push:
@@ -991,7 +985,7 @@ contexts:
     - match: |-
         (?x)
           [0-9] [0-9_]*
-        | ' (?: \\ {{char_escape}} | .??) '
+        | ' \\? .? '
       scope: entity.name.label.dascript
       set:
       - match: '{{colon}}'
