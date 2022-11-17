@@ -1065,21 +1065,19 @@ contexts:
 
   -typeinfo-expr:
   - match: typeinfo{{b}}
-    scope: keyword.operator.word.dascript
+    # Not `keyword.*` because in `static_if !typeinfo(some_trait x)`, it would be hard to spot `!`.
+    scope: support.function.typeinfo.dascript
     push:
     - match: \(
       scope: punctuation.section.group.begin.dascript
-      set:
-      - - meta_scope: meta.group.dascript
-        - match: \)
-          scope: punctuation.section.group.end.dascript
-          pop: true
-        - include: -everything
-      - - match: '{{identifier}}'
-          scope: support.function.typeinfo.dascript
-          set: angle-brackets-with-names
-        - include: -pop-on-non-whitespace
+      set: [parens-contents, typeinfo-trait]
     - include: -pop-on-non-whitespace
+
+  typeinfo-trait:
+  - match: '{{identifier}}'
+    scope: constant.other.typeinfo-trait.dascript
+    set: angle-brackets-with-names
+  - include: -pop-on-non-whitespace
 
   -misc-keywords:
   - match: (return)(\n|{{b}})
