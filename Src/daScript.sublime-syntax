@@ -126,28 +126,29 @@ contexts:
   -simple-annotations:
   - match: \[\[
     scope: punctuation.section.brackets.begin.dascript
-    push: [brackets-contents, brackets-contents, simple-annotation, annotation-identifier]
+    push: [brackets-contents, brackets-contents, simple-annotation, simple-annotation-identifier]
 
   -rich-annotations:
   - match: \[(?!\{)
     scope: punctuation.section.brackets.begin.dascript
-    # FIXME: `namespace` & `clear_scopes`.
-    push: [brackets-contents, rich-annotation, annotation-identifier, namespace]
+    push: [brackets-contents, rich-annotation, rich-annotation-identifier]
 
   # Argument lists in these are grammatically the same thing, but we highlight them differently:
   #   [rich_annotation(a=unquoted, b=2, flag), another]
   #   [[a=unquoted, b=2, flag]]
   #   options a = unquoted, b = 2, flag
 
-  annotation-identifier:
+  simple-annotation-identifier:
   - match: (?=[{{identifier_first_char}}]) # Keywords are allowed, too.
-    set:
-    - clear_scopes: 1
-    - meta_scope: meta.annotation.identifier.dascript variable.annotation.dascript
-    - meta_include_prototype: false
-    - match: (?![{{identifier_char}}])
-      pop: true
+    set: annotation-identifier
   - include: pop-on-non-whitespace-multiline
+
+  annotation-identifier:
+  - clear_scopes: 1
+  - meta_scope: meta.annotation.identifier.dascript variable.annotation.dascript
+  - meta_include_prototype: false
+  - match: (?![{{identifier_char}}])
+    pop: true
 
   simple-annotation:
   - meta_content_scope: meta.annotation.dascript
@@ -162,7 +163,7 @@ contexts:
     - annotation-argument-value
   - match: ','
     scope: punctuation.separator.dascript
-    push: annotation-identifier
+    push: simple-annotation-identifier
   - include: pop-on-non-whitespace-multiline
 
   annotation-argument-value:
@@ -185,6 +186,15 @@ contexts:
       - include: parens-contents
     - annotation-argument-value
 
+  rich-annotation-identifier:
+  - match: (?=[{{identifier_first_char}}:]) # Keywords are allowed, too.
+    set: [annotation-identifier, rich-annotation-identifier-namespace]
+  - include: pop-on-non-whitespace-multiline
+
+  rich-annotation-identifier-namespace:
+  - clear_scopes: 1
+  - include: namespace
+
   rich-annotation:
   - meta_content_scope: meta.annotation.dascript
   - match: \(
@@ -202,8 +212,7 @@ contexts:
     - rich-annotation-argument-name
   - match: ','
     scope: punctuation.separator.dascript
-    # FIXME: `namespace` & `clear_scopes`.
-    push: [annotation-identifier, namespace]
+    push: rich-annotation-identifier
   - include: pop-on-non-whitespace-multiline
 
   rich-annotation-argument-name:
@@ -1002,7 +1011,7 @@ contexts:
     - include: -declaration-modifiers
     - match: \[\[
       scope: punctuation.section.brackets.begin.dascript
-      set: [brackets-contents, brackets-contents, simple-annotation, annotation-identifier]
+      set: [brackets-contents, brackets-contents, simple-annotation, simple-annotation-identifier]
     - include: -capture-newline
     - include: -braced-block
     - include: -pop-on-non-whitespace
