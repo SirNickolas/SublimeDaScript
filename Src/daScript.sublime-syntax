@@ -825,6 +825,11 @@ contexts:
   function-body:
   - match: $
     set:
+    # We do not include `prototype` here. Therefore, if you need to break out of a function
+    # definition (probably, to treat subsequent `[[` as an annotation for a class field), you can
+    # achieve that by placing a comment at column 0. It is unlikely someone would put a comment
+    # at BOL and expect their class method (at least 2 indentation levels deeper) to continue.
+    - meta_include_prototype: false
     - match: |-
         (?x)
         [ \t]+ (?=
