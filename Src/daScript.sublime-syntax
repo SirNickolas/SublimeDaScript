@@ -6,6 +6,7 @@ scope: source.dascript
 
 # https://dascript.org/doc/reference/language/lexical_structure.html
 # TODO: Do not increase indentation after abstract method definitions.
+# TODO: Postfix `if`.
 
 variables:
   identifier_first_char: A-Za-z_
@@ -1193,12 +1194,7 @@ contexts:
       1: keyword.operator.logical.dascript
       2: keyword.operator.word.dascript
       3: keyword.operator.word.dascript
-    push:
-    - include: -pop-on-unexpected
-    - match: '{{identifier}}'
-      scope: constant.other.variant.dascript
-      pop: true
-    - include: -pop-on-non-whitespace
+    push: rtti-check
   - match: new{{b}}
     scope: keyword.operator.word.dascript
     push: [type-postfix, type, namespace]
@@ -1223,6 +1219,21 @@ contexts:
     scope: keyword.other.dascript
   - match: (?:{{basic_type}}|auto){{b}}
     scope: storage.type.dascript
+
+  rtti-check:
+  - match: ({{basic_type}}|bitfield)(\n|{{b}})
+    captures:
+      1: storage.type.dascript
+      2: meta.line-break.after-keyword.dascript
+    pop: true
+  - match: type{{b}}
+    scope: constant.language.dascript
+    set: angle-brackets
+  - include: -pop-on-unexpected
+  - match: '{{identifier}}'
+    scope: constant.other.variant.dascript
+    pop: true
+  - include: -pop-on-non-whitespace
 
   #
   # Operators.
@@ -1267,8 +1278,9 @@ contexts:
       pop: true
     - include: -pop-on-unpaired
     - include: -pop-on-unexpected
-    - match: (?=as{{b}}) # `?/**/as` - not a ternary conditional operator.
-      pop: true
+    - match: as{{b}} # `?/**/as` - not a ternary conditional operator.
+      scope: keyword.operator.word.dascript
+      set: rtti-check
     - include: -everything
   - match: '[-+*/]'
     scope: keyword.operator.arithmetic.dascript
