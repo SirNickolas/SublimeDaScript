@@ -922,6 +922,7 @@ contexts:
     push: typedef-entry
 
   typedef-entry:
+  - include: -declaration-modifiers
   - include: -pop-on-unexpected
   - match: '{{identifier}}'
     scope: entity.name.type.dascript
