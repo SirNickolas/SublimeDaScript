@@ -26,9 +26,9 @@ variables:
   # | label | let | module | options | recover | require | return | (?:static_)?(?:el)?if
   # | struct | try | typedef | var | while | yield
   # )
-  critical_keyword: class|def|enum|for|goto|include|label|let|module|require|struct|typedef|var
-  declaration_modifier: abstract|override|private|public|sealed|shared
-  language_constant: true|false|null
+  critical_keyword:
+    class|def|enum|for|goto|include|label|let|module|options|require|struct|typedef|var
+  declaration_modifier: abstract|const|override|private|public|sealed|shared
   basic_type: bool|double|float[234]?|string|u?int(?:[2348]|16|64)?|u?range|void
   generic_type: array|block|function|iterator|lambda|smart_ptr|table|tuple
 
@@ -96,9 +96,7 @@ contexts:
   - include: -everything
 
   -everything:
-  - include: -number-literals
-  - include: -character-literals
-  - include: -string-literals
+  - include: -literals
   - include: -any-brackets
   - include: -words
   - include: -punctuation
@@ -133,11 +131,16 @@ contexts:
   -rich-annotations:
   - match: \[(?!\{)
     scope: punctuation.section.brackets.begin.dascript
-    push: [brackets-contents, rich-annotation, annotation-identifier]
+    # FIXME: `namespace` & `clear_scopes`.
+    push: [brackets-contents, rich-annotation, annotation-identifier, namespace]
+
+  # Argument lists in these are grammatically the same thing, but we highlight them differently:
+  #   [rich_annotation(a=unquoted, b=2, flag), another]
+  #   [[a=unquoted, b=2, flag]]
+  #   options a = unquoted, b = 2, flag
 
   annotation-identifier:
-  - include: -pop-on-unexpected
-  - match: (?=[{{identifier_first_char}}])
+  - match: (?=[{{identifier_first_char}}]) # Keywords are allowed, too.
     set:
     - clear_scopes: 1
     - meta_scope: meta.annotation.identifier.dascript variable.annotation.dascript
@@ -151,15 +154,36 @@ contexts:
   - match: '{{equal}}'
     scope: keyword.operator.assignment.dascript
     push:
-    - clear_scopes: 1
-    - meta_scope: meta.annotation.parameters.dascript
-    - match: (?=[,;\]])
-      pop: true
-    - include: -everything
+    - - clear_scopes: 1
+      - meta_scope: meta.annotation.parameters.dascript
+      - match: (?=[,;\]])
+        pop: true
+      - include: -everything
+    - annotation-argument-value
   - match: ','
     scope: punctuation.separator.dascript
     push: annotation-identifier
   - include: pop-on-non-whitespace-multiline
+
+  annotation-argument-value:
+  - include: -annotation-argument-value
+  - include: pop-on-non-whitespace-multiline
+
+  -annotation-argument-value:
+  - include: -literals # We do not pop on them. Should we?
+  - include: -pop-on-unexpected
+  - match: '{{identifier}}'
+    scope: meta.string.dascript string.unquoted.dascript
+    pop: true
+  - match: \(
+    scope: punctuation.section.group.begin.dascript
+    set:
+    - - meta_scope: meta.group.dascript
+      - match: ','
+        scope: punctuation.separator.dascript
+        push: annotation-argument-value
+      - include: parens-contents
+    - annotation-argument-value
 
   rich-annotation:
   - meta_content_scope: meta.annotation.dascript
@@ -168,33 +192,54 @@ contexts:
     push:
     - - clear_scopes: 1
       - meta_scope: meta.annotation.parameters.dascript
-      - match: \)
-        scope: punctuation.section.group.end.dascript
-        pop: true
-      - include: -argument-comma
-      - include: -everything
-    - argument-name
+      - match: '{{equal}}'
+        scope: keyword.operator.assignment.dascript
+        push: annotation-argument-value
+      - match: ','
+        scope: punctuation.separator.argument.dascript
+        push: rich-annotation-argument-name
+      - include: parens-contents
+    - rich-annotation-argument-name
   - match: ','
     scope: punctuation.separator.dascript
-    # TODO: Support qualified annotation identifiers.
-    push: annotation-identifier
+    # FIXME: `namespace` & `clear_scopes`.
+    push: [annotation-identifier, namespace]
   - include: pop-on-non-whitespace-multiline
 
-  -argument-comma:
-  - match: ','
-    scope: punctuation.separator.argument.dascript
-    push: argument-name
-
-  argument-name:
-  - include: -pop-on-unexpected
-  - match: '{{identifier}}'
+  rich-annotation-argument-name:
+  - match: '{{identifier}}' # Keywords are allowed, too.
     scope: variable.parameter.dascript
     pop: true
   - include: pop-on-non-whitespace-multiline
 
+  option-name:
+  - match: '{{identifier}}' # Keywords are allowed, too.
+    scope: variable.other.directive.dascript
+    pop: true
+  - include: -pop-on-non-whitespace
+
+  option-list:
+  - match: '{{equal}}'
+    scope: keyword.operator.assignment.dascript
+    push:
+    - include: -annotation-argument-value
+    - include: -pop-on-non-whitespace
+  - match: ','
+    scope: punctuation.separator.dascript
+    push: option-name
+  - match: $
+    pop: true
+  - include: -everything
+
   #
   # Literals.
   #
+  -literals:
+  - include: -number-literals
+  - include: -character-literals
+  - include: -string-literals
+  - include: -language-constants
+
   -number-literals:
   - match: |-
       (?x)
@@ -263,6 +308,12 @@ contexts:
     - match: '"'
       scope: punctuation.definition.string.end.dascript
       pop: true
+
+  -language-constants:
+  - match: (true|false|null)(\n|{{b}})
+    captures:
+      1: constant.language.dascript
+      2: meta.line-break.after-keyword.dascript
 
   #
   # Bracket balancing.
@@ -364,7 +415,11 @@ contexts:
   - include: pop-on-non-whitespace-multiline
 
   named-arguments:
-  - include: -argument-comma
+  - match: ','
+    scope: punctuation.separator.argument.dascript
+    push:
+    - include: -pop-on-unexpected
+    - include: rich-annotation-argument-name
   - match: (?=\])
     pop: true
   - include: -everything
@@ -415,11 +470,7 @@ contexts:
     set: angle-brackets-with-names
   # `true/false/null` in type position - we won't see it in valid daScript, but this allows for
   # better integration with custom syntaxes (e.g., JSON).
-  - match: ({{language_constant}})(\n|{{b}})
-    captures:
-      1: constant.language.dascript
-      2: meta.line-break.after-keyword.dascript
-    pop: true
+  - include: -language-constants
   - include: -pop-on-unexpected
   - match: '{{identifier}}'
     scope: support.type.dascript
@@ -603,6 +654,7 @@ contexts:
   # Statements and expressions.
   #
   -words:
+  - include: -options-stmt
   - include: -module-stmt
   - include: -require-stmts
   - include: -include-stmts
@@ -646,6 +698,11 @@ contexts:
       2: variable.other.constant.enum.dascript
   - match: '{{identifier}}'
     scope: variable.other.dascript
+
+  -options-stmt:
+  - match: options{{b}}
+    scope: keyword.control.directive.dascript
+    push: [option-list, option-name]
 
   -declaration-modifiers:
   # We allow all of these for every construct that needs some. They are reserved keywords anyway.
@@ -1102,8 +1159,6 @@ contexts:
     - match: \(
       set: parens-contents
     - include: -optionally-braced-block
-  - match: options{{b}}
-    scope: keyword.control.directive.dascript
   - match: delete{{b}}
     scope: keyword.control.dascript
   - match: (pass)(\n|{{b}})
@@ -1134,10 +1189,6 @@ contexts:
     push: [type-postfix, type, namespace]
   - match: (?:addr|deref){{b}}
     scope: keyword.operator.word.dascript
-  - match: ({{language_constant}})(\n|{{b}})
-    captures:
-      1: constant.language.dascript
-      2: meta.line-break.after-keyword.dascript
   - match: (self|this)(\n|{{b}})
     captures:
       1: variable.language.dascript
